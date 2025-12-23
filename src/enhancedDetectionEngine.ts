@@ -297,20 +297,33 @@ export class EnhancedDetectionEngine {
         // Common workspace folders
         const commonFolders = [
             'apps', 'packages', 'services', 'modules', 'libs',
-            'microservices', 'functions', 'projects', 'workspaces'
+            'microservices', 'functions', 'projects', 'workspaces',
+            'frontend', 'backend', 'client', 'server', 'web', 'api'
         ];
 
         for (const folder of commonFolders) {
             const folderPath = path.join(this.basePath, folder);
             if (fs.existsSync(folderPath) && fs.statSync(folderPath).isDirectory()) {
-                const subDirs = fs.readdirSync(folderPath)
-                    .filter(item => {
-                        const itemPath = path.join(folderPath, item);
-                        return fs.statSync(itemPath).isDirectory();
-                    })
-                    .map(item => `${folder}/${item}`);
+                // Check if the folder itself is a project (has package.json, etc.)
+                const hasConfig = fs.existsSync(path.join(folderPath, 'package.json')) ||
+                    fs.existsSync(path.join(folderPath, 'pom.xml')) ||
+                    fs.existsSync(path.join(folderPath, 'go.mod')) ||
+                    fs.existsSync(path.join(folderPath, 'requirements.txt'));
 
-                workspaces.push(...subDirs);
+                if (hasConfig) {
+                    workspaces.push(folder);
+                } else {
+                    // It's a container folder (like apps/), scan children
+                    const subDirs = fs.readdirSync(folderPath)
+                        .filter(item => {
+                            const itemPath = path.join(folderPath, item);
+                            return fs.statSync(itemPath).isDirectory() &&
+                                (item !== 'node_modules' && item !== 'dist' && item !== 'build');
+                        })
+                        .map(item => `${folder}/${item}`);
+
+                    workspaces.push(...subDirs);
+                }
             }
         }
 
