@@ -1,0 +1,19 @@
+{
+  "name": "ember-app",
+  "version": "1.0.0",
+  "scripts": {
+    "start": "ember serve",
+    "build": "ember build"
+  },
+  "dependencies": {
+    "ember-cli": "^5.4.0",
+    "ember-source": "^5.4.0"
+  },
+  "devDependencies": {
+    "@ember/optional-features": "^2.0.0",
+    "ember-cli-babel": "^8.2.0"
+  },
+  "engines": {
+    "node": ">= 18"
+  }
+}

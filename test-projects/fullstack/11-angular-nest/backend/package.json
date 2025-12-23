@@ -1,0 +1,11 @@
+{
+  "name": "backend",
+  "version": "1.0.0",
+  "scripts": {
+    "start": "nest start"
+  },
+  "dependencies": {
+    "@nestjs/core": "^10.2.0",
+    "@nestjs/common": "^10.2.0"
+  }
+}

@@ -6,7 +6,15 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
-import { OutputFolderMapper, FrameworkOutputInfo } from './outputFolderMapper';
+
+export interface FrameworkOutputInfo {
+    framework: string;
+    variant?: string;
+    outputFolder: string;
+    buildCommand: string;
+    packageManager?: 'npm' | 'yarn' | 'pnpm';
+    isSSR?: boolean;
+}
 
 export type ProjectType =
     | 'frontend-only'
@@ -34,6 +42,7 @@ export interface DetectedBackend {
     path: string; // Relative path in monorepo (or "." for single projects)
     port?: number;
     dependencies?: any;
+    entryPoint?: string; // Main entry file (e.g., server.js, index.js)
 }
 
 export interface DetectedDatabase {
@@ -343,7 +352,7 @@ export class EnhancedDetectionEngine {
         }
 
         // Get output folder info
-        const outputInfo = OutputFolderMapper.getCompleteFrameworkInfo(
+        const outputInfo = this.getCompleteFrameworkInfo(
             framework,
             basePath,
             packageJson,
@@ -397,7 +406,20 @@ export class EnhancedDetectionEngine {
                 else if (dependencies['fastify']) framework = 'node-fastify';
                 else if (dependencies['hapi']) framework = 'node-hapi';
 
-                const packageManager = OutputFolderMapper.detectPackageManager(basePath);
+                const packageManager = this.detectPackageManager(basePath);
+
+                // Try to detect start script and entry point
+                const startScript = packageJson.scripts?.start || 'node server.js';
+                const mainFile = packageJson.main || 'index.js';
+                
+                // Detect actual entry point from start script
+                let entryPoint = 'server.js';
+                if (startScript.includes('node ')) {
+                    const match = startScript.match(/node\s+([^\s]+)/);
+                    if (match) entryPoint = match[1];
+                } else if (mainFile) {
+                    entryPoint = mainFile;
+                }
 
                 return {
                     exists: true,
@@ -406,7 +428,8 @@ export class EnhancedDetectionEngine {
                     packageManager,
                     path: relativePath,
                     port: 8000,
-                    dependencies: packageJson.dependencies
+                    dependencies: { ...packageJson.dependencies, ...packageJson.devDependencies },
+                    entryPoint
                 };
             }
         }
@@ -418,12 +441,29 @@ export class EnhancedDetectionEngine {
         if (fs.existsSync(requirementsPath) || fs.existsSync(pyprojectPath)) {
             let framework = 'python-flask';
             let packageManager = 'pip';
+            let entryPoint = 'app.py';
 
             if (fs.existsSync(requirementsPath)) {
                 const requirements = fs.readFileSync(requirementsPath, 'utf-8');
-                if (requirements.includes('fastapi')) framework = 'python-fastapi';
-                else if (requirements.includes('django')) framework = 'python-django';
-                else if (requirements.includes('flask')) framework = 'python-flask';
+                if (requirements.includes('fastapi')) {
+                    framework = 'python-fastapi';
+                    entryPoint = 'main.py';
+                } else if (requirements.includes('django')) {
+                    framework = 'python-django';
+                    entryPoint = 'manage.py';
+                } else if (requirements.includes('flask')) {
+                    framework = 'python-flask';
+                    entryPoint = 'app.py';
+                }
+            }
+
+            // Check for actual Python files
+            const possibleEntryPoints = ['main.py', 'app.py', 'server.py', 'manage.py', 'run.py'];
+            for (const file of possibleEntryPoints) {
+                if (fs.existsSync(path.join(basePath, file))) {
+                    entryPoint = file;
+                    break;
+                }
             }
 
             if (fs.existsSync(pyprojectPath)) {
@@ -438,7 +478,8 @@ export class EnhancedDetectionEngine {
                 language: 'python',
                 packageManager,
                 path: relativePath,
-                port: 8000
+                port: 8000,
+                entryPoint
             };
         }
 
@@ -505,12 +546,73 @@ export class EnhancedDetectionEngine {
     }
 
     /**
-     * Detect databases from environment files and docker-compose
+     * Detect databases from environment files, docker-compose, and dependencies
      */
     private async detectDatabases(): Promise<DetectedDatabase[]> {
         const databases: DetectedDatabase[] = [];
 
-        // Check for docker-compose.yml
+        // 1. Check for database dependencies in package.json (Node.js)
+        const packageJsonPath = path.join(this.basePath, 'package.json');
+        if (fs.existsSync(packageJsonPath)) {
+            try {
+                const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf-8'));
+                const allDeps = { ...packageJson.dependencies, ...packageJson.devDependencies };
+
+                // PostgreSQL
+                if (allDeps['pg'] || allDeps['postgres'] || allDeps['typeorm'] || allDeps['sequelize'] || allDeps['knex']) {
+                    if (!databases.some(db => db.type === 'postgres')) {
+                        databases.push({ exists: true, type: 'postgres', port: 5432, version: '15-alpine' });
+                    }
+                }
+
+                // MySQL/MariaDB
+                if (allDeps['mysql'] || allDeps['mysql2']) {
+                    if (!databases.some(db => db.type === 'mysql')) {
+                        databases.push({ exists: true, type: 'mysql', port: 3306, version: '8-oracle' });
+                    }
+                }
+
+                // MongoDB
+                if (allDeps['mongodb'] || allDeps['mongoose']) {
+                    if (!databases.some(db => db.type === 'mongodb')) {
+                        databases.push({ exists: true, type: 'mongodb', port: 27017, version: '7' });
+                    }
+                }
+
+                // Redis
+                if (allDeps['redis'] || allDeps['ioredis']) {
+                    if (!databases.some(db => db.type === 'redis')) {
+                        databases.push({ exists: true, type: 'redis', port: 6379, version: '7-alpine' });
+                    }
+                }
+            } catch (err) {
+                // Ignore JSON parse errors
+            }
+        }
+
+        // 2. Check for Python dependencies in requirements.txt
+        const requirementsPath = path.join(this.basePath, 'requirements.txt');
+        if (fs.existsSync(requirementsPath)) {
+            const requirements = fs.readFileSync(requirementsPath, 'utf-8').toLowerCase();
+
+            if ((requirements.includes('psycopg2') || requirements.includes('asyncpg')) && !databases.some(db => db.type === 'postgres')) {
+                databases.push({ exists: true, type: 'postgres', port: 5432, version: '15-alpine' });
+            }
+
+            if ((requirements.includes('pymysql') || requirements.includes('mysql-connector')) && !databases.some(db => db.type === 'mysql')) {
+                databases.push({ exists: true, type: 'mysql', port: 3306, version: '8-oracle' });
+            }
+
+            if (requirements.includes('pymongo') && !databases.some(db => db.type === 'mongodb')) {
+                databases.push({ exists: true, type: 'mongodb', port: 27017, version: '7' });
+            }
+
+            if (requirements.includes('redis') && !databases.some(db => db.type === 'redis')) {
+                databases.push({ exists: true, type: 'redis', port: 6379, version: '7-alpine' });
+            }
+        }
+
+        // 3. Check for docker-compose.yml
         const composePaths = [
             path.join(this.basePath, 'docker-compose.yml'),
             path.join(this.basePath, 'docker-compose.yaml')
@@ -520,37 +622,41 @@ export class EnhancedDetectionEngine {
             if (fs.existsSync(composePath)) {
                 const composeContent = fs.readFileSync(composePath, 'utf-8');
 
-                if (composeContent.includes('image: postgres')) {
-                    databases.push({ exists: true, type: 'postgres', port: 5432 });
+                if (composeContent.includes('postgres') && !databases.some(db => db.type === 'postgres')) {
+                    databases.push({ exists: true, type: 'postgres', port: 5432, version: '15-alpine' });
                 }
-                if (composeContent.includes('image: mysql')) {
-                    databases.push({ exists: true, type: 'mysql', port: 3306 });
+                if (composeContent.includes('mysql') && !databases.some(db => db.type === 'mysql')) {
+                    databases.push({ exists: true, type: 'mysql', port: 3306, version: '8-oracle' });
                 }
-                if (composeContent.includes('image: mongo')) {
-                    databases.push({ exists: true, type: 'mongodb', port: 27017 });
+                if (composeContent.includes('mongo') && !databases.some(db => db.type === 'mongodb')) {
+                    databases.push({ exists: true, type: 'mongodb', port: 27017, version: '7' });
                 }
-                if (composeContent.includes('image: redis')) {
-                    databases.push({ exists: true, type: 'redis', port: 6379 });
+                if (composeContent.includes('redis') && !databases.some(db => db.type === 'redis')) {
+                    databases.push({ exists: true, type: 'redis', port: 6379, version: '7-alpine' });
                 }
             }
         }
 
-        // Check for .env files
+        // 4. Check for .env files
         const envPath = path.join(this.basePath, '.env');
-        if (fs.existsSync(envPath)) {
-            const envContent = fs.readFileSync(envPath, 'utf-8');
+        const envExamplePath = path.join(this.basePath, '.env.example');
+        
+        for (const envFile of [envPath, envExamplePath]) {
+            if (fs.existsSync(envFile)) {
+                const envContent = fs.readFileSync(envFile, 'utf-8').toUpperCase();
 
-            if (envContent.includes('POSTGRES') && databases.every(db => db.type !== 'postgres')) {
-                databases.push({ exists: true, type: 'postgres', port: 5432 });
-            }
-            if (envContent.includes('MYSQL') && databases.every(db => db.type !== 'mysql')) {
-                databases.push({ exists: true, type: 'mysql', port: 3306 });
-            }
-            if (envContent.includes('MONGO') && databases.every(db => db.type !== 'mongodb')) {
-                databases.push({ exists: true, type: 'mongodb', port: 27017 });
-            }
-            if (envContent.includes('REDIS') && databases.every(db => db.type !== 'redis')) {
-                databases.push({ exists: true, type: 'redis', port: 6379 });
+                if ((envContent.includes('POSTGRES') || envContent.includes('DATABASE_URL=postgres')) && !databases.some(db => db.type === 'postgres')) {
+                    databases.push({ exists: true, type: 'postgres', port: 5432, version: '15-alpine' });
+                }
+                if (envContent.includes('MYSQL') && !databases.some(db => db.type === 'mysql')) {
+                    databases.push({ exists: true, type: 'mysql', port: 3306, version: '8-oracle' });
+                }
+                if ((envContent.includes('MONGO') || envContent.includes('MONGODB')) && !databases.some(db => db.type === 'mongodb')) {
+                    databases.push({ exists: true, type: 'mongodb', port: 27017, version: '7' });
+                }
+                if (envContent.includes('REDIS') && !databases.some(db => db.type === 'redis')) {
+                    databases.push({ exists: true, type: 'redis', port: 6379, version: '7-alpine' });
+                }
             }
         }
 
@@ -562,5 +668,189 @@ export class EnhancedDetectionEngine {
      */
     private checkFileExists(filename: string): boolean {
         return fs.existsSync(path.join(this.basePath, filename));
+    }
+
+    /**
+     * Detect package manager from lock files
+     */
+    private detectPackageManager(basePath: string): 'npm' | 'yarn' | 'pnpm' {
+        if (fs.existsSync(path.join(basePath, 'pnpm-lock.yaml'))) {
+            return 'pnpm';
+        }
+        if (fs.existsSync(path.join(basePath, 'yarn.lock'))) {
+            return 'yarn';
+        }
+        return 'npm';
+    }
+
+    /**
+     * Get the correct install command based on package manager
+     */
+    private getInstallCommand(packageManager: 'npm' | 'yarn' | 'pnpm', production: boolean = false): string {
+        switch (packageManager) {
+            case 'npm':
+                return production ? 'npm ci --only=production' : 'npm ci';
+            case 'yarn':
+                return production ? 'yarn install --production' : 'yarn install';
+            case 'pnpm':
+                return production ? 'pnpm install --prod' : 'pnpm install';
+            default:
+                return 'npm install';
+        }
+    }
+
+    /**
+     * Get the correct build command with package manager
+     */
+    private getBuildCommand(packageManager: 'npm' | 'yarn' | 'pnpm', customCommand?: string): string {
+        const command = customCommand || 'build';
+
+        switch (packageManager) {
+            case 'npm':
+                return `npm run ${command}`;
+            case 'yarn':
+                return `yarn ${command}`;
+            case 'pnpm':
+                return `pnpm ${command}`;
+            default:
+                return `npm run ${command}`;
+        }
+    }
+
+    /**
+     * Detect actual build command and output folder from package.json
+     */
+    private detectBuildConfigFromPackageJson(packageJson: any, basePath: string): { buildCommand: string; outputFolder: string } {
+        const scripts = packageJson.scripts || {};
+        const buildScript = scripts.build || '';
+        
+        // Try to detect output folder from build script
+        let outputFolder = 'dist'; // default
+        
+        // Check for common patterns in build script
+        if (buildScript.includes('--outDir')) {
+            const match = buildScript.match(/--outDir[=\s]+([^\s]+)/);
+            if (match) outputFolder = match[1];
+        } else if (buildScript.includes('--out-dir')) {
+            const match = buildScript.match(/--out-dir[=\s]+([^\s]+)/);
+            if (match) outputFolder = match[1];
+        } else if (buildScript.includes('BUILD_PATH=')) {
+            const match = buildScript.match(/BUILD_PATH=([^\s]+)/);
+            if (match) outputFolder = match[1];
+        }
+        
+        // Check for CRA (react-scripts build) - outputs to 'build'
+        if (buildScript.includes('react-scripts build')) {
+            outputFolder = 'build';
+        }
+        
+        // Check for Next.js static export
+        if (buildScript.includes('next build') && buildScript.includes('next export')) {
+            outputFolder = 'out';
+        }
+        
+        // Check for vite.config.js/ts for custom build output
+        try {
+            const viteConfigPath = fs.existsSync(path.join(basePath, 'vite.config.ts')) 
+                ? path.join(basePath, 'vite.config.ts')
+                : path.join(basePath, 'vite.config.js');
+            
+            if (fs.existsSync(viteConfigPath)) {
+                const viteConfig = fs.readFileSync(viteConfigPath, 'utf-8');
+                const outDirMatch = viteConfig.match(/outDir:\s*['"]([^'"]+)['"]/);
+                if (outDirMatch) {
+                    outputFolder = outDirMatch[1];
+                }
+            }
+        } catch (err) {
+            // Ignore errors
+        }
+        
+        const buildCommand = scripts.build || 'npm run build';
+        
+        return { buildCommand, outputFolder };
+    }
+
+    /**
+     * Get complete framework info including everything needed for Dockerfile
+     */
+    private getCompleteFrameworkInfo(
+        framework: string,
+        basePath: string,
+        packageJson?: any,
+        configFiles?: any
+    ): FrameworkOutputInfo & { installCommand: string; packageManager: 'npm' | 'yarn' | 'pnpm' } {
+        const packageManager = this.detectPackageManager(basePath);
+        const installCommand = this.getInstallCommand(packageManager, false);
+        let buildCommand = this.getBuildCommand(packageManager, 'build');
+        let outputFolder = 'dist'; // default
+        let variant = undefined;
+        let isSSR = false;
+
+        // Detect framework-specific defaults
+        if (framework === 'react') {
+            const hasVite = configFiles?.hasViteConfig || false;
+            const hasCRA = configFiles?.hasCRAConfig || false;
+            if (hasCRA) {
+                outputFolder = 'build';
+                variant = 'cra';
+            } else {
+                outputFolder = 'dist';
+                variant = 'vite';
+            }
+        } else if (framework === 'nextjs') {
+            const isStatic = configFiles?.nextConfigContent?.output === 'export';
+            if (isStatic) {
+                outputFolder = 'out';
+                variant = 'static';
+            } else {
+                outputFolder = '.next';
+                variant = 'ssr';
+                isSSR = true;
+            }
+        } else if (framework === 'angular') {
+            const angularJson = configFiles?.angularJsonContent;
+            if (angularJson?.projects) {
+                const projectName = Object.keys(angularJson.projects)[0];
+                outputFolder = angularJson.projects[projectName]?.architect?.build?.options?.outputPath || 'dist';
+            }
+        } else if (framework === 'vue') {
+            outputFolder = 'dist';
+        } else if (framework === 'svelte') {
+            if (configFiles?.hasSvelteKitConfig) {
+                outputFolder = 'build';
+                variant = 'kit';
+                isSSR = true;
+            } else {
+                outputFolder = 'dist';
+                variant = 'vite';
+            }
+        } else if (framework === 'gatsby') {
+            outputFolder = 'public';
+        } else if (framework === 'nuxt') {
+            outputFolder = '.output/public';
+            isSSR = true;
+        }
+        
+        // Try to detect actual build configuration from package.json
+        if (packageJson) {
+            const detected = this.detectBuildConfigFromPackageJson(packageJson, basePath);
+            if (detected.buildCommand && detected.buildCommand !== 'npm run build') {
+                buildCommand = this.getBuildCommand(packageManager, 'build');
+            }
+            if (detected.outputFolder && detected.outputFolder !== 'dist') {
+                outputFolder = detected.outputFolder;
+            }
+        }
+
+        return {
+            framework,
+            variant,
+            outputFolder,
+            buildCommand,
+            packageManager,
+            installCommand,
+            isSSR
+        };
     }
 }

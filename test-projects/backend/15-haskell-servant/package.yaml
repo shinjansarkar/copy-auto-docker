@@ -1,0 +1,13 @@
+name: servant-api
+version: 1.0.0
+
+dependencies:
+- base >= 4.7 && < 5
+- servant-server
+- warp
+- aeson
+
+executables:
+  servant-api-exe:
+    main: Main.hs
+    source-dirs: src

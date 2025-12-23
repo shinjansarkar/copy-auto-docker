@@ -273,23 +273,52 @@ CMD ["node", "build"]
     }
 
     /**
-     * Generate Node.js backend Dockerfile
+     * Generate Node.js backend Dockerfile (2-stage build)
      */
     private static generateNodeBackendDockerfile(backend: DetectedBackend): string {
         const packageManager = backend.packageManager || 'npm';
+        const entryPoint = backend.entryPoint || 'server.js';
+        const port = this.detectPort(backend);
 
-        let installCommand = 'npm ci --only=production';
+        let installDevCommand = 'npm ci';
+        let installProdCommand = 'npm ci --only=production';
         let packageFiles = 'package*.json';
 
         if (packageManager === 'yarn') {
-            installCommand = 'yarn install --production';
+            installDevCommand = 'yarn install';
+            installProdCommand = 'yarn install --production';
             packageFiles = 'package.json yarn.lock';
         } else if (packageManager === 'pnpm') {
-            installCommand = 'pnpm install --prod';
+            installDevCommand = 'pnpm install';
+            installProdCommand = 'pnpm install --prod';
             packageFiles = 'package.json pnpm-lock.yaml';
         }
 
-        return `# Node.js backend Dockerfile
+        // Detect if TypeScript or build step is needed
+        const needsBuild = this.detectIfBuildNeeded(backend);
+
+        if (needsBuild) {
+            // Determine output entry point for TypeScript builds
+            const builtEntry = entryPoint.replace(/\.ts$/, '.js');
+            
+            return `# Stage 1: Build
+FROM node:20-alpine AS builder
+
+WORKDIR /app
+
+# Copy package files
+COPY ${packageFiles} ./
+
+# Install all dependencies (including dev)
+RUN ${installDevCommand}
+
+# Copy source code
+COPY . .
+
+# Build application
+RUN npm run build
+
+# Stage 2: Production
 FROM node:20-alpine
 
 WORKDIR /app
@@ -297,39 +326,165 @@ WORKDIR /app
 # Copy package files
 COPY ${packageFiles} ./
 
+# Install production dependencies only
+RUN ${installProdCommand}
+
+# Copy built application from builder
+COPY --from=builder /app/dist ./dist
+COPY --from=builder /app/package.json ./package.json
+
+# Expose port
+EXPOSE ${port}
+
+# Start application
+CMD ["node", "dist/${builtEntry}"]
+`;
+        }
+
+        // Simple Node.js without build step
+        return `# Stage 1: Dependencies
+FROM node:20-alpine AS builder
+
+WORKDIR /app
+
+# Copy package files
+COPY ${packageFiles} ./
+
 # Install production dependencies
-RUN ${installCommand}
+RUN ${installProdCommand}
+
+# Stage 2: Production
+FROM node:20-alpine
+
+WORKDIR /app
+
+# Copy dependencies from builder
+COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/package.json ./package.json
 
 # Copy source code
 COPY . .
 
 # Expose port
-EXPOSE 8000
+EXPOSE ${port}
 
 # Start application
-CMD ["node", "server.js"]
+CMD ["node", "${entryPoint}"]
 `;
     }
 
     /**
-     * Generate Python backend Dockerfile
+     * Detect if backend needs a build step (TypeScript, etc.)
+     */
+    private static detectIfBuildNeeded(backend: DetectedBackend): boolean {
+        if (!backend.dependencies) return false;
+        
+        // Check for TypeScript or build tools
+        const buildIndicators = ['typescript', '@types/node', 'ts-node', 'tsc'];
+        return Object.keys(backend.dependencies).some(dep => buildIndicators.includes(dep));
+    }
+
+    /**
+     * Detect application port from source files
+     */
+    private static detectPort(backend: DetectedBackend, defaultPort: number = 3000): number {
+        const fs = require('fs');
+        const path = require('path');
+        
+        if (!backend.projectPath) return defaultPort;
+
+        // Try to read entry point file
+        const entryPoint = backend.entryPoint || 'server.js';
+        const entryPath = path.join(backend.projectPath, entryPoint);
+        
+        try {
+            if (fs.existsSync(entryPath)) {
+                const content = fs.readFileSync(entryPath, 'utf-8');
+                
+                // Common port patterns for Node.js
+                const nodePatterns = [
+                    /PORT\s*=\s*process\.env\.PORT\s*\|\|\s*(\d+)/,
+                    /port\s*=\s*process\.env\.PORT\s*\|\|\s*(\d+)/,
+                    /listen\((\d+)/,
+                    /PORT\s*=\s*(\d+)/,
+                    /port\s*=\s*(\d+)/,
+                ];
+                
+                // Common port patterns for Python
+                const pythonPatterns = [
+                    /port\s*=\s*(\d+)/i,
+                    /PORT\s*=\s*(\d+)/,
+                    /--port[=\s]+(\d+)/,
+                    /uvicorn.*--port\s+(\d+)/,
+                    /runserver.*:(\d+)/,
+                ];
+                
+                const patterns = backend.language === 'python' ? pythonPatterns : nodePatterns;
+                
+                for (const pattern of patterns) {
+                    const match = content.match(pattern);
+                    if (match && match[1]) {
+                        return parseInt(match[1], 10);
+                    }
+                }
+            }
+        } catch (error) {
+            // If we can't read the file, return default
+        }
+        
+        // Check package.json for port hints
+        try {
+            const packagePath = path.join(backend.projectPath, 'package.json');
+            if (fs.existsSync(packagePath)) {
+                const packageContent = JSON.parse(fs.readFileSync(packagePath, 'utf-8'));
+                
+                // Check scripts for port references
+                if (packageContent.scripts) {
+                    const scriptsStr = JSON.stringify(packageContent.scripts);
+                    const portMatch = scriptsStr.match(/--port[=\s]+(\d+)/);
+                    if (portMatch) {
+                        return parseInt(portMatch[1], 10);
+                    }
+                }
+            }
+        } catch (error) {
+            // Ignore errors
+        }
+        
+        // Default ports by framework
+        if (backend.framework === 'python-fastapi' || backend.framework === 'python-django') {
+            return 8000;
+        }
+        if (backend.framework === 'python-flask') {
+            return 5000;
+        }
+        
+        return defaultPort;
+    }
+
+    /**
+     * Generate Python backend Dockerfile (2-stage build)
      */
     private static generatePythonBackendDockerfile(backend: DetectedBackend): string {
-        const { framework, packageManager } = backend;
+        const { framework, packageManager, entryPoint } = backend;
+        const port = this.detectPort(backend, 8000);
 
         let startCommand = 'python app.py';
 
         if (framework === 'python-fastapi') {
-            startCommand = 'uvicorn main:app --host 0.0.0.0 --port 8000';
+            const mainFile = entryPoint || 'main.py';
+            const moduleName = mainFile.replace('.py', '');
+            startCommand = `uvicorn ${moduleName}:app --host 0.0.0.0 --port ${port}`;
         } else if (framework === 'python-django') {
-            startCommand = 'python manage.py runserver 0.0.0.0:8000';
+            startCommand = `python manage.py runserver 0.0.0.0:${port}`;
         } else if (framework === 'python-flask') {
-            startCommand = 'python app.py';
+            const mainFile = entryPoint || 'app.py';
+            startCommand = `python ${mainFile}`;
         }
 
         if (packageManager === 'poetry') {
-            return `# Python backend Dockerfile (Poetry)
-FROM python:3.11-slim
+            return `# Stage 1: Build dependencies
+FROM python:3.11-slim AS builder
 
 WORKDIR /app
 
@@ -339,36 +494,59 @@ RUN pip install poetry
 # Copy poetry files
 COPY pyproject.toml poetry.lock ./
 
-# Install dependencies
-RUN poetry install --no-dev
+# Install dependencies to a virtual environment
+RUN poetry config virtualenvs.in-project true && \\
+    poetry install --no-dev --no-root
+
+# Stage 2: Production
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# Copy virtual environment from builder
+COPY --from=builder /app/.venv /app/.venv
 
 # Copy source code
 COPY . .
 
+# Set PATH to use virtual environment
+ENV PATH="/app/.venv/bin:$PATH"
+
 # Expose port
-EXPOSE 8000
+EXPOSE ${port}
 
 # Start application
-CMD ["poetry", "run", "${startCommand}"]
+CMD ${JSON.stringify(startCommand.split(' '))}
 `;
         }
 
-        return `# Python backend Dockerfile
-FROM python:3.11-slim
+        return `# Stage 1: Build dependencies
+FROM python:3.11-slim AS builder
 
 WORKDIR /app
 
 # Copy requirements
 COPY requirements.txt .
 
-# Install dependencies
-RUN pip install --no-cache-dir -r requirements.txt
+# Install dependencies to a local directory
+RUN pip install --no-cache-dir --user -r requirements.txt
+
+# Stage 2: Production
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# Copy installed packages from builder
+COPY --from=builder /root/.local /root/.local
 
 # Copy source code
 COPY . .
 
+# Update PATH to include user installed packages
+ENV PATH=/root/.local/bin:$PATH
+
 # Expose port
-EXPOSE 8000
+EXPOSE ${port}
 
 # Start application
 CMD ${JSON.stringify(startCommand.split(' '))}
@@ -559,22 +737,36 @@ ENTRYPOINT ["dotnet", "YourApp.dll"]
     }
 
     /**
-     * Generate Ruby backend Dockerfile
+     * Generate Ruby backend Dockerfile (2-stage build)
      */
     private static generateRubyBackendDockerfile(backend: DetectedBackend): string {
-        return `# Ruby backend Dockerfile
-FROM ruby:3.2-alpine
+        return `# Stage 1: Build dependencies
+FROM ruby:3.2-alpine AS builder
 
 WORKDIR /app
 
-# Install dependencies
+# Install build dependencies
 RUN apk add --no-cache build-base postgresql-dev
 
 # Copy Gemfile
 COPY Gemfile Gemfile.lock ./
 
-# Install gems
-RUN bundle install --without development test
+# Install gems to vendor/bundle
+RUN bundle config set --local deployment 'true' && \\
+    bundle config set --local without 'development test' && \\
+    bundle install
+
+# Stage 2: Production
+FROM ruby:3.2-alpine
+
+WORKDIR /app
+
+# Install runtime dependencies only
+RUN apk add --no-cache postgresql-client
+
+# Copy gems from builder
+COPY --from=builder /usr/local/bundle /usr/local/bundle
+COPY --from=builder /app/vendor/bundle /app/vendor/bundle
 
 # Copy source code
 COPY . .
