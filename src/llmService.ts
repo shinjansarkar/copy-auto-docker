@@ -1613,8 +1613,8 @@ FROM nginx:alpine
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 
 # Copy built application from builder
-COPY --from=builder /app/dist /usr/share/nginx/html
-COPY --from=builder /app/build /usr/share/nginx/html
+# Note: Adjust dist/build path based on your build tool (Vite uses 'dist', CRA uses 'build')
+COPY --from=builder /app/dist /usr/share/nginx/html 2>/dev/null || COPY --from=builder /app/build /usr/share/nginx/html
 
 EXPOSE 80
 

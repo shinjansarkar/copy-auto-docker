@@ -340,7 +340,9 @@ RUN npm run build
 FROM nginx:alpine
 
 COPY nginx.conf /etc/nginx/conf.d/default.conf
-COPY --from=builder /app/dist /usr/share/nginx/html
+# Copy built files (handles both Vite's 'dist' and CRA's 'build')
+COPY --from=builder /app/dist /usr/share/nginx/html 2>/dev/null || \\
+COPY --from=builder /app/build /usr/share/nginx/html
 
 EXPOSE 80
 
