@@ -149,3 +149,6 @@ coverage/
 
 # Internal documentation (development only)
 /docs
+
+
+/test-projects/
