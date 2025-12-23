@@ -1,0 +1,123 @@
+# ============================================
+# DEVELOPMENT FILES
+# ============================================
+.vscode/**
+.vscode-test/**
+.vscode-test.mjs
+out/**
+node_modules/**
+src/**
+.git/**
+.gitignore
+.yarnrc
+esbuild.js
+**/tsconfig.json
+**/tsconfig.test.json
+**/eslint.config.mjs
+**/*.map
+**/*.ts
+**/.vscode-test.*
+*.vsix
+
+# Git and CI/CD
+.github/**
+.gitattributes
+
+# Package files
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+# ============================================
+# TEST FILES AND ARTIFACTS
+# ============================================
+# Test directories
+.demo-test/**
+.test/**
+test-project/**
+test-projects/**
+test-results/**
+stress-test-projects/**
+stress-test-results/**
+
+# Test scripts
+demo-docker-test.js
+test-extension.js
+comprehensive-test.js
+integration-test.js
+stress-test.js
+run-all-tests.sh
+run-tests.sh
+run-tests-standalone.js
+
+# ============================================
+# DOCUMENTATION (Development Only)
+# ============================================
+# Keep only: README.md, LICENSE
+
+# Internal documentation folder
+docs/**
+
+# Implementation and development docs
+IMPLEMENTATION.md
+DEVELOPER_GUIDE.md
+PRODUCTION_DEPLOYMENT.md
+TWO_STEP_AI_IMPLEMENTATION.md
+REFACTORING_SUMMARY.md
+SETUP_INSTRUCTIONS.md
+CLEANUP_SUMMARY.md
+QUICK_START.md
+
+# Test documentation
+TESTING.md
+TESTING-SUMMARY.md
+TEST_SUMMARY.md
+README_TESTING.md
+STRESS_TEST_RESULTS.md
+TEST-GUIDE.md
+FINAL-TEST-REPORT.md
+MONOREPO-TESTING.md
+QUICKSTART-TESTING.md
+TEST-EXECUTION-REPORT.md
+TEST-IMPLEMENTATION-REPORT.md
+FINAL-TEST-SUMMARY.md
+FILE-MANAGEMENT-GUIDE.md
+
+# Internal summaries
+IMPLEMENTATION-SUMMARY.md
+FAILURE-ANALYSIS.md
+DELIVERABLES.md
+READY-TO-USE.md
+PUBLIC-RELEASE-REPORT.md
+Failure-Analysis.md
+3-DAY-LAUNCH-PLAN.md
+
+# Generic development docs
+CONTRIBUTING.md
+RELEASE.md
+
+# ============================================
+# BUILD ARTIFACTS
+# ============================================
+esbuild.meta.json
+*.log
+coverage/**
+.nyc_output/**
+
+# ============================================
+# MISC
+# ============================================
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+.env
+.env.*
+
+# Examples directory (keep examples in source but not in package)
+src/examples/**
+
+# Temporary and cache files
+*.tmp
+.cache/**
