@@ -32,6 +32,7 @@ export interface DetectedFrontend {
     installCommand: string;
     path: string; // Relative path in monorepo (or "." for single projects)
     port?: number;
+    projectPath?: string; // Absolute path to project root
 }
 
 export interface DetectedBackend {
@@ -427,7 +428,8 @@ export class EnhancedDetectionEngine {
                     packageManager: 'npm',
                     installCommand: '', // No install needed
                     path: relativePath,
-                    port: 80
+                    port: 80,
+                    projectPath: basePath
                 };
             }
 
@@ -438,7 +440,8 @@ export class EnhancedDetectionEngine {
                 buildCommand: 'npm run build',
                 packageManager: 'npm',
                 installCommand: 'npm ci',
-                path: relativePath
+                path: relativePath,
+                projectPath: basePath
             };
         }
 
@@ -842,7 +845,8 @@ export class EnhancedDetectionEngine {
             exists: false,
             framework: 'unknown',
             language: 'node',
-            path: relativePath
+            path: relativePath,
+            projectPath: basePath
         };
     }
 

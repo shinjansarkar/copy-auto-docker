@@ -55,6 +55,33 @@ export class SmartDockerfileGenerator {
 
         // Determine package files to copy
         let packageFiles = 'package*.json';
+
+        // Ensure proper install command if lockfile is missing
+        if (frontend.projectPath && frontend.packageManager === 'npm') {
+            const fs = require('fs');
+            const path = require('path');
+            const hasLockfile = fs.existsSync(path.join(frontend.projectPath, 'package-lock.json'));
+            if (!hasLockfile) {
+                // Force install command to be npm install if no lockfile
+                // Note: 'installCommand' passed in might already be 'npm ci', so we check
+                if (installCommand.includes('npm ci')) {
+                    // We can't modify const, but we can return different string or use variable
+                    // Actually, detecting at source (EnhancedEngine) is better, but here works for fix.
+                    // But wait, installCommand is destructured.
+                }
+            }
+        }
+
+        // Logic: if npm and NO package-lock.json, use 'npm install'
+        let finalInstallCommand = installCommand;
+        if (packageManager === 'npm' && frontend.projectPath) {
+            const fs = require('fs');
+            const path = require('path');
+            if (!fs.existsSync(path.join(frontend.projectPath, 'package-lock.json'))) {
+                finalInstallCommand = 'npm install';
+            }
+        }
+
         if (packageManager === 'yarn') {
             packageFiles = 'package.json yarn.lock';
         } else if (packageManager === 'pnpm') {
@@ -70,7 +97,7 @@ WORKDIR /app
 COPY ${packageFiles} ./
 
 # Install dependencies
-RUN ${installCommand}
+RUN ${finalInstallCommand}
 
 # Copy source code
 COPY . .
@@ -563,13 +590,23 @@ CMD ${JSON.stringify(startCommand.split(' '))}
      * Generate Go backend Dockerfile
      */
     private static generateGoBackendDockerfile(backend: DetectedBackend): string {
+        const fs = require('fs');
+        const path = require('path');
+        let hasGoSum = true;
+
+        if (backend.projectPath) {
+            hasGoSum = fs.existsSync(path.join(backend.projectPath, 'go.sum'));
+        }
+
+        const copyCommand = hasGoSum ? 'COPY go.mod go.sum ./' : 'COPY go.mod ./';
+
         return `# Multi-stage build for Go
 FROM golang:1.22-alpine AS builder
 
 WORKDIR /app
 
 # Copy go mod files
-COPY go.mod go.sum ./
+${copyCommand}
 
 # Download dependencies
 RUN go mod download

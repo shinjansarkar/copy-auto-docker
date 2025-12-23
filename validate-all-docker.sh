@@ -20,8 +20,21 @@ test_project() {
     echo -e "\033[34m▶ Testing: $display_name\033[0m"
     
     # Check if Dockerfile exists
-    if [ ! -f "$project_dir/Dockerfile" ] && [ ! -f "$project_dir/backend/Dockerfile" ] && [ ! -f "$project_dir/frontend/Dockerfile" ]; then
-        # Check monorepo structure
+    # Check for client/server/web/api folders which are common in monorepos/fullstack
+    local has_inner_docker=false
+    
+    if [ -f "$project_dir/Dockerfile" ]; then
+        has_inner_docker=true
+    elif [ -f "$project_dir/backend/Dockerfile" ] || [ -f "$project_dir/frontend/Dockerfile" ]; then
+         has_inner_docker=true
+    elif [ -f "$project_dir/server/Dockerfile" ] || [ -f "$project_dir/client/Dockerfile" ]; then
+         has_inner_docker=true
+    elif [ -f "$project_dir/api/Dockerfile" ] || [ -f "$project_dir/web/Dockerfile" ]; then
+         has_inner_docker=true
+    fi
+
+    if [ "$has_inner_docker" = false ]; then
+        # Check standard monorepo structures (apps/*, packages/*)
         local found=false
         if [ -d "$project_dir/apps" ]; then
             if ls "$project_dir/apps"/*/Dockerfile 1> /dev/null 2>&1; then found=true; fi
@@ -37,10 +50,7 @@ test_project() {
         fi
     fi
     
-    # Build
-    # We use a simple heuristic: if Dockerfile at root, build root.
-    # If not, look for backend/Dockerfile or similar.
-    
+    # Build strategy
     local build_cmd=""
     local build_context="$project_dir"
     local image_name="test-$(echo $name | tr '[:upper:]' '[:lower:]' | tr -cd '[:alnum:]-')"
@@ -51,6 +61,24 @@ test_project() {
         build_cmd="docker build -t $image_name -f backend/Dockerfile ."
     elif [ -f "$project_dir/frontend/Dockerfile" ]; then
         build_cmd="docker build -t $image_name -f frontend/Dockerfile ."
+    elif [ -f "$project_dir/server/Dockerfile" ]; then
+        # For implicit workspaces (server folder is root of backend), we might need to build from server context OR root context
+        # The generated Dockerfile usually expects to be at root of service (COPY package.json .)
+        # But if we build from project root, we need -f server/Dockerfile 
+        # AND check if Dockerfile expects context at root or subfolder.
+        # SmartDockerfileGenerator usually copies . . -> implies context is service root.
+        # So we should cd into server/ for build.
+        build_context="$project_dir/server"
+        build_cmd="docker build -t $image_name ."
+    elif [ -f "$project_dir/client/Dockerfile" ]; then
+        build_context="$project_dir/client"
+        build_cmd="docker build -t $image_name ."
+    elif [ -f "$project_dir/api/Dockerfile" ]; then
+        build_context="$project_dir/api"
+        build_cmd="docker build -t $image_name ."
+    elif [ -f "$project_dir/web/Dockerfile" ]; then
+        build_context="$project_dir/web"
+        build_cmd="docker build -t $image_name ."
     else
         # Try to find any Dockerfile
         local df=$(find "$project_dir" -name Dockerfile | head -n 1)
