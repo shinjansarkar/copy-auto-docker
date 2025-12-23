@@ -37,12 +37,13 @@ export interface DetectedFrontend {
 export interface DetectedBackend {
     exists: boolean;
     framework: string;
-    language: 'node' | 'python' | 'java' | 'go' | 'php' | 'dotnet' | 'ruby' | 'elixir';
+    language: 'node' | 'python' | 'java' | 'go' | 'php' | 'dotnet' | 'ruby' | 'elixir' | 'rust' | 'haskell' | 'kotlin' | 'scala';
     packageManager?: string;
     path: string; // Relative path in monorepo (or "." for single projects)
     port?: number;
     dependencies?: any;
     entryPoint?: string; // Main entry file (e.g., server.js, index.js)
+    projectPath?: string; // Absolute path to project root
 }
 
 export interface DetectedDatabase {
@@ -79,6 +80,70 @@ export class EnhancedDetectionEngine {
 
     constructor(basePath: string) {
         this.basePath = basePath;
+    }
+
+    /**
+     * Perform deep scan for nested projects (up to depth 4)
+     */
+    private async performDeepScan(): Promise<EnhancedDetectionResult | null> {
+        console.log('[EnhancedDetectionEngine] Performing Deep Scan...');
+
+        // Helper to recursively find config files
+        const findConfigs = (dir: string, depth: number): string[] => {
+            if (depth > 7) return [];
+            let results: string[] = [];
+
+            try {
+                const files = fs.readdirSync(dir);
+                for (const file of files) {
+                    const fullPath = path.join(dir, file);
+                    const stat = fs.statSync(fullPath);
+
+                    if (stat.isDirectory()) {
+                        if (file === 'node_modules' || file === '.git' || file === 'dist' || file === 'build') continue;
+                        results = results.concat(findConfigs(fullPath, depth + 1));
+                    } else {
+                        if (Array.from(['package.json', 'requirements.txt', 'pom.xml', 'go.mod', 'Cargo.toml', 'Gemfile']).includes(file)) {
+                            results.push(dir);
+                        }
+                    }
+                }
+            } catch (e) { /* ignore */ }
+            return results;
+        };
+
+        const foundDirs = [...new Set(findConfigs(this.basePath, 0))];
+
+        if (foundDirs.length === 0) return null;
+
+        // If we found a single relevant folder deeply nested, analyze it
+        // If multiple, treat as monorepo? For now, just pick the shallowest one or most "populated"
+
+        // Sort by path length (shallowest first)
+        foundDirs.sort((a, b) => a.length - b.length);
+
+        const bestDir = foundDirs[0];
+        const relPath = path.relative(this.basePath, bestDir);
+
+        console.log(`[DeepScan] Found nested project at: ${relPath}`);
+
+        const frontend = await this.detectFrontend(bestDir, relPath);
+        const backend = await this.detectBackend(bestDir, relPath);
+
+        if (frontend.exists || backend.exists) {
+            return {
+                projectType: (frontend.exists && backend.exists) ? 'fullstack' : (frontend.exists ? 'frontend-only' : 'backend-only'),
+                frontend: frontend.exists ? frontend : undefined,
+                backend: backend.exists ? backend : undefined,
+                databases: [], // Deep scan for DBs?
+                monorepo: undefined,
+                hasDockerfile: false,
+                hasDockerCompose: false,
+                hasNginxConfig: false
+            };
+        }
+
+        return null;
     }
 
     /**
@@ -126,6 +191,62 @@ export class EnhancedDetectionEngine {
                     frontends: [],
                     backends: []
                 };
+            }
+
+            // Fix for Fullstack folder structures (frontend/backend, client/server, web/api)
+            const possibleFrontends = ['frontend', 'client', 'web', 'ui'];
+            const possibleBackends = ['backend', 'server', 'api', 'app'];
+
+            let detectedFrontend: string | undefined;
+            let detectedBackend: string | undefined;
+
+            for (const f of possibleFrontends) {
+                if (fs.existsSync(path.join(this.basePath, f)) && fs.statSync(path.join(this.basePath, f)).isDirectory()) {
+                    detectedFrontend = f;
+                    break;
+                }
+            }
+
+            for (const b of possibleBackends) {
+                if (fs.existsSync(path.join(this.basePath, b)) && fs.statSync(path.join(this.basePath, b)).isDirectory()) {
+                    detectedBackend = b;
+                    // Additional check: Don't treat 'app' as backend if it's inside a Next.js/Nuxt project (which use 'app' folder)
+                    // But here we are at root. If root has package.json with next, 'app' is part of frontend.
+                    // If no root package.json, 'app' might be backend.
+                    // For now, simple existence is enough to trigger "Deep Scan" which is what monorepo mode does.
+                    break;
+                }
+            }
+
+            if (detectedFrontend || detectedBackend) {
+                const spaces = [];
+                if (detectedFrontend) spaces.push(detectedFrontend);
+                if (detectedBackend) spaces.push(detectedBackend);
+
+                // Only verify if inside these folders there are actual projects to avoid false positives
+                let hasProject = false;
+                for (const s of spaces) {
+                    if (fs.existsSync(path.join(this.basePath, s, 'package.json')) ||
+                        fs.existsSync(path.join(this.basePath, s, 'requirements.txt')) ||
+                        fs.existsSync(path.join(this.basePath, s, 'Gemfile')) ||
+                        fs.existsSync(path.join(this.basePath, s, 'pom.xml')) ||
+                        fs.existsSync(path.join(this.basePath, s, 'build.gradle')) ||
+                        fs.existsSync(path.join(this.basePath, s, 'Cargo.toml')) ||
+                        fs.existsSync(path.join(this.basePath, s, 'go.mod'))) {
+                        hasProject = true;
+                        break;
+                    }
+                }
+
+                if (hasProject) {
+                    return {
+                        isMonorepo: true,
+                        tool: 'yarn', // Default
+                        workspaces: spaces,
+                        frontends: [],
+                        backends: []
+                    };
+                }
             }
 
             return {
@@ -257,7 +378,12 @@ export class EnhancedDetectionEngine {
         } else if (backend.exists) {
             projectType = 'backend-only';
         } else {
-            projectType = 'backend-only'; // Default
+            // Attempt Deep Scan if nothing found at root
+            const deepResult = await this.performDeepScan();
+            if (deepResult) {
+                return deepResult;
+            }
+            projectType = 'backend-only'; // Default fallback
         }
 
         return {
@@ -278,6 +404,20 @@ export class EnhancedDetectionEngine {
         const packageJsonPath = path.join(basePath, 'package.json');
 
         if (!fs.existsSync(packageJsonPath)) {
+            // Check for Static HTML sites (index.html present, no package.json)
+            if (fs.existsSync(path.join(basePath, 'index.html'))) {
+                return {
+                    exists: true,
+                    framework: 'html',
+                    outputFolder: '.',
+                    buildCommand: '', // No build needed
+                    packageManager: 'npm',
+                    installCommand: '', // No install needed
+                    path: relativePath,
+                    port: 80
+                };
+            }
+
             return {
                 exists: false,
                 framework: 'unknown',
@@ -289,7 +429,22 @@ export class EnhancedDetectionEngine {
             };
         }
 
-        const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf-8'));
+        let packageJson: any = {};
+        try {
+            packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf-8'));
+        } catch (e) {
+            console.warn(`[EnhancedDetectionEngine] Failed to parse package.json at ${packageJsonPath}`);
+            return {
+                exists: false,
+                framework: 'unknown',
+                outputFolder: 'dist',
+                buildCommand: 'npm run build',
+                packageManager: 'npm',
+                installCommand: 'npm ci',
+                path: relativePath
+            };
+        }
+
         const dependencies = { ...packageJson.dependencies, ...packageJson.devDependencies };
 
         // Detect framework
@@ -303,7 +458,10 @@ export class EnhancedDetectionEngine {
         else if (dependencies['@sveltejs/kit']) framework = 'svelte';
         else if (dependencies['gatsby']) framework = 'gatsby';
         else if (dependencies['ember-cli']) framework = 'ember';
+        else if (dependencies['ember-cli']) framework = 'ember';
         else if (dependencies['solid-js']) framework = 'solid';
+        else if (dependencies['preact']) framework = 'preact';
+        else if (dependencies['astro']) framework = 'astro';
 
         // If no frontend framework detected, return not exists
         if (framework === 'unknown') {
@@ -348,7 +506,9 @@ export class EnhancedDetectionEngine {
         }
 
         if (hasAngularJson) {
-            angularJsonContent = JSON.parse(fs.readFileSync(path.join(basePath, 'angular.json'), 'utf-8'));
+            try {
+                angularJsonContent = JSON.parse(fs.readFileSync(path.join(basePath, 'angular.json'), 'utf-8'));
+            } catch (e) { /* ignore */ }
         }
 
         // Get output folder info
@@ -387,7 +547,17 @@ export class EnhancedDetectionEngine {
         // Check for Node.js backend
         const packageJsonPath = path.join(basePath, 'package.json');
         if (fs.existsSync(packageJsonPath)) {
-            const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf-8'));
+            let packageJson: any;
+            try {
+                packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf-8'));
+            } catch (e) {
+                return {
+                    exists: false,
+                    framework: 'unknown',
+                    language: 'node',
+                    path: relativePath
+                };
+            }
             const dependencies = { ...packageJson.dependencies, ...packageJson.devDependencies };
 
             // Check if it's a backend (not frontend)
@@ -411,7 +581,7 @@ export class EnhancedDetectionEngine {
                 // Try to detect start script and entry point
                 const startScript = packageJson.scripts?.start || 'node server.js';
                 const mainFile = packageJson.main || 'index.js';
-                
+
                 // Detect actual entry point from start script
                 let entryPoint = 'server.js';
                 if (startScript.includes('node ')) {
@@ -427,6 +597,7 @@ export class EnhancedDetectionEngine {
                     language: 'node',
                     packageManager,
                     path: relativePath,
+                    projectPath: basePath,
                     port: 8000,
                     dependencies: { ...packageJson.dependencies, ...packageJson.devDependencies },
                     entryPoint
@@ -478,6 +649,7 @@ export class EnhancedDetectionEngine {
                 language: 'python',
                 packageManager,
                 path: relativePath,
+                projectPath: basePath,
                 port: 8000,
                 entryPoint
             };
@@ -498,6 +670,7 @@ export class EnhancedDetectionEngine {
                 framework,
                 language: 'go',
                 path: relativePath,
+                projectPath: basePath,
                 port: 8000
             };
         }
@@ -505,14 +678,37 @@ export class EnhancedDetectionEngine {
         // Check for Java backend
         const pomPath = path.join(basePath, 'pom.xml');
         const gradlePath = path.join(basePath, 'build.gradle');
+        const gradleKtsPath = path.join(basePath, 'build.gradle.kts');
+        const sbtPath = path.join(basePath, 'build.sbt');
 
-        if (fs.existsSync(pomPath) || fs.existsSync(gradlePath)) {
+        if (fs.existsSync(pomPath) || fs.existsSync(gradlePath) || fs.existsSync(gradleKtsPath) || fs.existsSync(sbtPath)) {
+            let framework = 'java-spring-boot';
+            let language: any = 'java';
+            let packageManager = 'maven';
+
+            if (fs.existsSync(pomPath)) packageManager = 'maven';
+            else if (fs.existsSync(gradlePath) || fs.existsSync(gradleKtsPath)) packageManager = 'gradle';
+            else if (fs.existsSync(sbtPath)) packageManager = 'sbt';
+
+            // Better language detection
+            if (fs.existsSync(sbtPath)) {
+                language = 'scala';
+                framework = 'scala-play';
+            } else if (fs.existsSync(path.join(basePath, 'src', 'main', 'kotlin'))) {
+                language = 'kotlin';
+                framework = 'kotlin-ktor'; // assumption
+            } else if (fs.existsSync(path.join(basePath, 'src', 'main', 'scala'))) {
+                language = 'scala';
+                framework = 'scala-play'; // assumption
+            }
+
             return {
                 exists: true,
-                framework: 'java-spring-boot',
-                language: 'java',
-                packageManager: fs.existsSync(pomPath) ? 'maven' : 'gradle',
+                framework,
+                language,
+                packageManager,
                 path: relativePath,
+                projectPath: basePath,
                 port: 8080
             };
         }
@@ -520,11 +716,17 @@ export class EnhancedDetectionEngine {
         // Check for PHP backend
         const composerPath = path.join(basePath, 'composer.json');
         if (fs.existsSync(composerPath)) {
-            const composer = JSON.parse(fs.readFileSync(composerPath, 'utf-8'));
-            let framework = 'php-laravel';
+            let composer: any = {};
+            try {
+                composer = JSON.parse(fs.readFileSync(composerPath, 'utf-8'));
+            } catch (e) { /* ignore */ }
+
+            let framework = 'php-laravel'; // Default detected PHP
 
             if (composer.require && composer.require['laravel/framework']) framework = 'php-laravel';
             else if (composer.require && composer.require['symfony/symfony']) framework = 'php-symfony';
+            // Allow generic PHP if composer.json exists but no specific framework found? 
+            // For now default to laravel or generic php if we could detect it better.
 
             return {
                 exists: true,
@@ -532,7 +734,93 @@ export class EnhancedDetectionEngine {
                 language: 'php',
                 packageManager: 'composer',
                 path: relativePath,
+                projectPath: basePath,
                 port: 8000
+            };
+        }
+
+        // Check for Ruby backend (Rails/Sinatra)
+        const gemfilePath = path.join(basePath, 'Gemfile');
+        if (fs.existsSync(gemfilePath)) {
+            const gemfile = fs.readFileSync(gemfilePath, 'utf-8');
+            let framework = 'ruby-rails';
+
+            if (gemfile.includes("gem 'rails'")) framework = 'ruby-rails';
+            else if (gemfile.includes('sinatra')) framework = 'ruby-sinatra';
+
+            return {
+                exists: true,
+                framework,
+                language: 'ruby',
+                packageManager: 'bundler',
+                path: relativePath,
+                projectPath: basePath,
+                port: 3000
+            };
+        }
+
+        // Check for Rust backend
+        const cargoPath = path.join(basePath, 'Cargo.toml');
+        if (fs.existsSync(cargoPath)) {
+            const cargo = fs.readFileSync(cargoPath, 'utf-8');
+            let framework = 'rust-actix'; // Default or most popular
+
+            if (cargo.includes('actix-web')) framework = 'rust-actix';
+            else if (cargo.includes('axum')) framework = 'rust-axum';
+            else if (cargo.includes('rocket')) framework = 'rust-rocket';
+
+            return {
+                exists: true,
+                framework,
+                language: 'rust', // Need to add 'rust' to DetectedBackend language union type if strict
+                packageManager: 'cargo',
+                path: relativePath,
+                projectPath: basePath,
+                port: 8080
+            };
+        }
+
+        // Check for .NET backend
+        // Look for .csproj or .fsproj files
+        const files = fs.readdirSync(basePath);
+        const dotnetFile = files.find(f => f.endsWith('.csproj') || f.endsWith('.fsproj'));
+        if (dotnetFile) {
+            return {
+                exists: true,
+                framework: 'dotnet',
+                language: 'dotnet',
+                packageManager: 'nuget',
+                path: relativePath,
+                projectPath: basePath,
+                port: 5000 /* 8080 or 5000 */
+            };
+        }
+
+        // Check for Elixir (Phoenix)
+        const mixPath = path.join(basePath, 'mix.exs');
+        if (fs.existsSync(mixPath)) {
+            return {
+                exists: true,
+                framework: 'elixir-phoenix',
+                language: 'elixir',
+                packageManager: 'mix',
+                path: relativePath,
+                projectPath: basePath,
+                port: 4000
+            };
+        }
+
+        // Check for Haskell
+        const cabalFile = files.find(f => f.endsWith('.cabal'));
+        if (cabalFile || fs.existsSync(path.join(basePath, 'stack.yaml')) || fs.existsSync(path.join(basePath, 'package.yaml'))) {
+            return {
+                exists: true,
+                framework: 'haskell-servant', // assumption
+                language: 'haskell' as any,
+                packageManager: 'cabal',
+                path: relativePath,
+                projectPath: basePath,
+                port: 8080
             };
         }
 
@@ -640,7 +928,7 @@ export class EnhancedDetectionEngine {
         // 4. Check for .env files
         const envPath = path.join(this.basePath, '.env');
         const envExamplePath = path.join(this.basePath, '.env.example');
-        
+
         for (const envFile of [envPath, envExamplePath]) {
             if (fs.existsSync(envFile)) {
                 const envContent = fs.readFileSync(envFile, 'utf-8').toUpperCase();
@@ -723,10 +1011,10 @@ export class EnhancedDetectionEngine {
     private detectBuildConfigFromPackageJson(packageJson: any, basePath: string): { buildCommand: string; outputFolder: string } {
         const scripts = packageJson.scripts || {};
         const buildScript = scripts.build || '';
-        
+
         // Try to detect output folder from build script
         let outputFolder = 'dist'; // default
-        
+
         // Check for common patterns in build script
         if (buildScript.includes('--outDir')) {
             const match = buildScript.match(/--outDir[=\s]+([^\s]+)/);
@@ -738,23 +1026,23 @@ export class EnhancedDetectionEngine {
             const match = buildScript.match(/BUILD_PATH=([^\s]+)/);
             if (match) outputFolder = match[1];
         }
-        
+
         // Check for CRA (react-scripts build) - outputs to 'build'
         if (buildScript.includes('react-scripts build')) {
             outputFolder = 'build';
         }
-        
+
         // Check for Next.js static export
         if (buildScript.includes('next build') && buildScript.includes('next export')) {
             outputFolder = 'out';
         }
-        
+
         // Check for vite.config.js/ts for custom build output
         try {
-            const viteConfigPath = fs.existsSync(path.join(basePath, 'vite.config.ts')) 
+            const viteConfigPath = fs.existsSync(path.join(basePath, 'vite.config.ts'))
                 ? path.join(basePath, 'vite.config.ts')
                 : path.join(basePath, 'vite.config.js');
-            
+
             if (fs.existsSync(viteConfigPath)) {
                 const viteConfig = fs.readFileSync(viteConfigPath, 'utf-8');
                 const outDirMatch = viteConfig.match(/outDir:\s*['"]([^'"]+)['"]/);
@@ -765,9 +1053,9 @@ export class EnhancedDetectionEngine {
         } catch (err) {
             // Ignore errors
         }
-        
+
         const buildCommand = scripts.build || 'npm run build';
-        
+
         return { buildCommand, outputFolder };
     }
 
@@ -831,7 +1119,7 @@ export class EnhancedDetectionEngine {
             outputFolder = '.output/public';
             isSSR = true;
         }
-        
+
         // Try to detect actual build configuration from package.json
         if (packageJson) {
             const detected = this.detectBuildConfigFromPackageJson(packageJson, basePath);

@@ -267,6 +267,12 @@ CMD ["node", "build"]
                 return this.generateDotNetBackendDockerfile(backend);
             case 'ruby':
                 return this.generateRubyBackendDockerfile(backend);
+            case 'rust':
+                return this.generateRustBackendDockerfile(backend);
+            case 'elixir':
+                return this.generateElixirBackendDockerfile(backend);
+            case 'haskell':
+                return this.generateHaskellBackendDockerfile(backend);
             default:
                 return this.generateNodeBackendDockerfile(backend);
         }
@@ -300,7 +306,7 @@ CMD ["node", "build"]
         if (needsBuild) {
             // Determine output entry point for TypeScript builds
             const builtEntry = entryPoint.replace(/\.ts$/, '.js');
-            
+
             return `# Stage 1: Build
 FROM node:20-alpine AS builder
 
@@ -378,7 +384,7 @@ CMD ["node", "${entryPoint}"]
      */
     private static detectIfBuildNeeded(backend: DetectedBackend): boolean {
         if (!backend.dependencies) return false;
-        
+
         // Check for TypeScript or build tools
         const buildIndicators = ['typescript', '@types/node', 'ts-node', 'tsc'];
         return Object.keys(backend.dependencies).some(dep => buildIndicators.includes(dep));
@@ -390,17 +396,17 @@ CMD ["node", "${entryPoint}"]
     private static detectPort(backend: DetectedBackend, defaultPort: number = 3000): number {
         const fs = require('fs');
         const path = require('path');
-        
+
         if (!backend.projectPath) return defaultPort;
 
         // Try to read entry point file
         const entryPoint = backend.entryPoint || 'server.js';
         const entryPath = path.join(backend.projectPath, entryPoint);
-        
+
         try {
             if (fs.existsSync(entryPath)) {
                 const content = fs.readFileSync(entryPath, 'utf-8');
-                
+
                 // Common port patterns for Node.js
                 const nodePatterns = [
                     /PORT\s*=\s*process\.env\.PORT\s*\|\|\s*(\d+)/,
@@ -409,7 +415,7 @@ CMD ["node", "${entryPoint}"]
                     /PORT\s*=\s*(\d+)/,
                     /port\s*=\s*(\d+)/,
                 ];
-                
+
                 // Common port patterns for Python
                 const pythonPatterns = [
                     /port\s*=\s*(\d+)/i,
@@ -418,9 +424,9 @@ CMD ["node", "${entryPoint}"]
                     /uvicorn.*--port\s+(\d+)/,
                     /runserver.*:(\d+)/,
                 ];
-                
+
                 const patterns = backend.language === 'python' ? pythonPatterns : nodePatterns;
-                
+
                 for (const pattern of patterns) {
                     const match = content.match(pattern);
                     if (match && match[1]) {
@@ -431,13 +437,13 @@ CMD ["node", "${entryPoint}"]
         } catch (error) {
             // If we can't read the file, return default
         }
-        
+
         // Check package.json for port hints
         try {
             const packagePath = path.join(backend.projectPath, 'package.json');
             if (fs.existsSync(packagePath)) {
                 const packageContent = JSON.parse(fs.readFileSync(packagePath, 'utf-8'));
-                
+
                 // Check scripts for port references
                 if (packageContent.scripts) {
                     const scriptsStr = JSON.stringify(packageContent.scripts);
@@ -450,7 +456,7 @@ CMD ["node", "${entryPoint}"]
         } catch (error) {
             // Ignore errors
         }
-        
+
         // Default ports by framework
         if (backend.framework === 'python-fastapi' || backend.framework === 'python-django') {
             return 8000;
@@ -458,7 +464,7 @@ CMD ["node", "${entryPoint}"]
         if (backend.framework === 'python-flask') {
             return 5000;
         }
-        
+
         return defaultPort;
     }
 
@@ -776,6 +782,110 @@ EXPOSE 8000
 
 # Start application
 CMD ["bundle", "exec", "rails", "server", "-b", "0.0.0.0"]
+`;
+    }
+
+    /**
+     * Generate Rust backend Dockerfile
+     */
+    private static generateRustBackendDockerfile(backend: DetectedBackend): string {
+        return `# Multi-stage build for Rust
+FROM rust:1.75-slim-bookworm as builder
+
+WORKDIR /usr/src/app
+
+COPY . .
+
+# Build application
+RUN cargo build --release
+
+# Production stage
+FROM debian:bookworm-slim
+
+WORKDIR /usr/local/bin
+
+# Copy binary from builder
+COPY --from=builder /usr/src/app/target/release/* .
+
+# Expose port
+EXPOSE 8080
+
+# Start application (assumes binary name matches package name or generic run)
+CMD ["./app"] 
+# Note: You might need to change "./app" to your actual binary name
+`;
+    }
+
+    /**
+     * Generate Elixir (Phoenix) Dockerfile
+     */
+    private static generateElixirBackendDockerfile(backend: DetectedBackend): string {
+        return `# Multi-stage build for Elixir
+FROM elixir:1.14-alpine as builder
+
+WORKDIR /app
+
+# Install build dependencies
+RUN apk add --no-cache build-base git
+
+# Install hex + rebar
+RUN mix local.hex --force && \
+    mix local.rebar --force
+
+# Copy config files
+COPY mix.exs mix.lock ./
+
+# Install dependencies
+RUN mix deps.get --only prod
+RUN mix deps.compile
+
+# Copy source
+COPY . .
+
+# Build release
+RUN mix release
+
+# Production stage
+FROM alpine:3.17
+
+WORKDIR /app
+
+RUN apk add --no-cache libstdc++ ncurses-libs openssl javascript
+
+COPY --from=builder /app/_build/prod/rel/app ./
+
+EXPOSE 4000
+
+CMD ["bin/server", "start"]
+`;
+    }
+
+    /**
+     * Generate Haskell Dockerfile
+     */
+    private static generateHaskellBackendDockerfile(backend: DetectedBackend): string {
+        return `# Multi-stage build for Haskell
+FROM haskell:9.4 as builder
+
+WORKDIR /app
+
+COPY . .
+
+# Install dependencies and build
+RUN cabal update && \
+    cabal build --enable-executable-stripping
+
+# Production stage
+FROM debian:bullseye-slim
+
+WORKDIR /app
+
+# Copy binary (Adjust path based on your project structure)
+COPY --from=builder /app/dist-newstyle/build/*/*/bin/* ./app
+
+EXPOSE 8080
+
+CMD ["./app"]
 `;
     }
 

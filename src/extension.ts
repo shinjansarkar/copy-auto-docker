@@ -17,6 +17,12 @@ import {
     FileWriteLock
 } from './criticalErrorHandling';
 
+// Export for verification/testing
+export { DockerGenerationOrchestrator } from './dockerGenerationOrchestrator';
+export { EnhancedDetectionEngine } from './enhancedDetectionEngine';
+export { ProjectAnalyzer } from './projectAnalyzer';
+
+
 let outputChannel: vscode.OutputChannel;
 
 export function activate(context: vscode.ExtensionContext) {

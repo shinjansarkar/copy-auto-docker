@@ -1,0 +1,9 @@
+node_modules
+dist
+out
+.git
+.vscode
+.vscode-test
+test-automation
+images
+*.vsix
