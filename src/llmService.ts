@@ -877,7 +877,7 @@ ${isFrontend || (projectStructure.backend && projectStructure.frontend) ? `
                 // Check if using reverse proxy mode
                 const useReverseProxy = this.shouldUseReverseProxy(projectStructure);
                 if (useReverseProxy) {
-                    return this.generateFrontendDevDockerfile();
+                    return this.generateFrontendDevDockerfile(projectStructure);
                 }
 
                 // Generic frontend build (React, Vue, Vite, Svelte, Solid, Preact, etc.)
@@ -1586,7 +1586,10 @@ ENV PORT 3000
 CMD ["node", "build"]`;
     }
 
-    private generateFrontendDevDockerfile(): string {
+    private generateFrontendDevDockerfile(projectStructure: ProjectStructure): string {
+        // Detect the correct build output directory
+        const buildDir = this.getBuildDirectory(projectStructure);
+        
         return `# Stage 1: Builder
 FROM node:18-alpine AS builder
 WORKDIR /app
@@ -1613,8 +1616,7 @@ FROM nginx:alpine
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 
 # Copy built application from builder
-# Note: Adjust dist/build path based on your build tool (Vite uses 'dist', CRA uses 'build')
-COPY --from=builder /app/dist /usr/share/nginx/html 2>/dev/null || COPY --from=builder /app/build /usr/share/nginx/html
+COPY --from=builder /app/${buildDir} /usr/share/nginx/html
 
 EXPOSE 80
 

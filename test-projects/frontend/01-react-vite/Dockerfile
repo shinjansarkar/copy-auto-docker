@@ -20,9 +20,8 @@ FROM nginx:alpine
 # Copy custom nginx config (EXTERNAL FILE)
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 
-# Copy built application from builder
+# Copy built application from builder (Vite outputs to 'dist')
 COPY --from=builder /app/dist /usr/share/nginx/html
-COPY --from=builder /app/build /usr/share/nginx/html
 
 EXPOSE 80
 
