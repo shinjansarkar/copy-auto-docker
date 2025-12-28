@@ -288,7 +288,13 @@ ${filesSection}
 
 Your tasks:
 
-1. Generate **production‑grade Docker artifacts**, including:
+1. **Analyze the provided files** to determine:
+   - Exact build output directories (check package.json build script, vite.config.js, angular.json, etc.)
+   - For React: Check if using Vite (outputs to 'dist') or Create React App/react-scripts (outputs to 'build')
+   - For Vue: Check vite.config.js or vue.config.js for custom outDir (default: 'dist')
+   - For Angular: Check angular.json outputPath
+   - Never use fallback patterns like "COPY dist || COPY build" - determine the EXACT folder
+2. Generate **production‑grade Docker artifacts**, including:
    - Multi‑stage Dockerfile(s)
    - docker-compose.yml (only if needed)
    - NGINX config (only if frontend or reverse proxy is required)
@@ -340,7 +346,12 @@ RUN npm run build
 FROM nginx:alpine
 
 COPY nginx.conf /etc/nginx/conf.d/default.conf
-COPY --from=builder /app/dist /usr/share/nginx/html
+# Copy built files - IMPORTANT: Detect the correct output folder
+# - Vite/Vue/Angular/Svelte typically use 'dist'
+# - Create React App (react-scripts) uses 'build'
+# - Check package.json build script or vite.config.js for the actual output directory
+# Use the SPECIFIC detected folder, not a fallback pattern
+COPY --from=builder /app/{DETECTED_OUTPUT_FOLDER} /usr/share/nginx/html
 
 EXPOSE 80
 
@@ -349,6 +360,13 @@ HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \\
 
 CMD ["nginx", "-g", "daemon off;"]
 \`\`\`
+
+**CRITICAL:** Replace \`{DETECTED_OUTPUT_FOLDER}\` with the ACTUAL output directory by:
+1. Checking package.json "scripts.build" for --outDir or BUILD_PATH
+2. Reading vite.config.js/ts for "build.outDir" configuration
+3. Reading angular.json for "projects.*.architect.build.options.outputPath"
+4. If using react-scripts (Create React App), use 'build'
+5. If using Vite without custom config, use 'dist'
 
 ### NGINX Configuration (SPA‑Ready, Secure, Gzip, Cache)
 

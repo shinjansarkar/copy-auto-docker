@@ -20,16 +20,12 @@ FROM nginx:alpine
 # Copy custom nginx config (EXTERNAL FILE)
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 
-# Copy built application from builder
+# Copy built application from builder (Vite outputs to 'dist')
 COPY --from=builder /app/dist /usr/share/nginx/html
-COPY --from=builder /app/build /usr/share/nginx/html
 
 EXPOSE 80
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3   CMD wget --quiet --tries=1 --spider http://localhost/ || exit 1
-
-# Run as non-root user
-USER nginx
 
 CMD ["nginx", "-g", "daemon off;"]

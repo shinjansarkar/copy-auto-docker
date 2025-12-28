@@ -648,7 +648,29 @@ export class FileManager {
         }
     }
 
+    private detectBuildOutputDir(projectStructure: ProjectStructure): string {
+        // Check dependencies and devDependencies for build tool
+        const deps = projectStructure.frontendDependencies || projectStructure.dependencies || {};
+        const allDeps = { ...deps.dependencies, ...deps.devDependencies };
+        
+        // Vite, Astro, SvelteKit use 'dist'
+        if (allDeps['vite'] || allDeps['@vitejs/plugin-react'] || allDeps['astro'] || allDeps['@sveltejs/kit']) {
+            return 'dist';
+        }
+        // Next.js uses '.next'
+        if (allDeps['next']) {
+            return '.next';
+        }
+        // Remix uses 'build'
+        if (allDeps['@remix-run/node'] || allDeps['@remix-run/react']) {
+            return 'build';
+        }
+        // Default to 'build' (CRA, most tools)
+        return 'build';
+    }
+
     private generateMonorepoFrontendDockerfile(projectStructure: ProjectStructure): string {
+        const buildDir = this.detectBuildOutputDir(projectStructure);
         return `# Stage 1: Builder
 FROM node:18-alpine AS builder
 WORKDIR /app
@@ -672,8 +694,7 @@ RUN npm run build
 FROM nginx:alpine
 
 # Copy built application from builder
-COPY --from=builder /app/dist /usr/share/nginx/html
-COPY --from=builder /app/build /usr/share/nginx/html
+COPY --from=builder /app/${buildDir} /usr/share/nginx/html
 
 # Nginx configuration for SPA routing
 RUN echo 'server {
@@ -697,9 +718,6 @@ EXPOSE 80
 # Health check
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \\
   CMD wget --quiet --tries=1 --spider http://localhost/ || exit 1
-
-# Run as non-root user
-USER nginx
 
 CMD ["nginx", "-g", "daemon off;"]`;
     }

@@ -5,7 +5,6 @@ import { ProjectAnalyzer } from './projectAnalyzer';
 import { EnhancedProjectAnalyzer } from './enhancedProjectAnalyzer';
 import { LLMService } from './llmService';
 import { FileManager } from './fileManager';
-import { ComprehensiveAnalyzer } from './comprehensiveAnalyzer';
 import { DockerGenerationOrchestrator } from './dockerGenerationOrchestrator';
 import {
     MultiWorkspaceManager,

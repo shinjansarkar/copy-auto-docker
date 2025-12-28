@@ -877,7 +877,7 @@ ${isFrontend || (projectStructure.backend && projectStructure.frontend) ? `
                 // Check if using reverse proxy mode
                 const useReverseProxy = this.shouldUseReverseProxy(projectStructure);
                 if (useReverseProxy) {
-                    return this.generateFrontendDevDockerfile();
+                    return this.generateFrontendDevDockerfile(projectStructure);
                 }
 
                 // Generic frontend build (React, Vue, Vite, Svelte, Solid, Preact, etc.)
@@ -1586,7 +1586,10 @@ ENV PORT 3000
 CMD ["node", "build"]`;
     }
 
-    private generateFrontendDevDockerfile(): string {
+    private generateFrontendDevDockerfile(projectStructure: ProjectStructure): string {
+        // Detect the correct build output directory
+        const buildDir = this.getBuildDirectory(projectStructure);
+        
         return `# Stage 1: Builder
 FROM node:18-alpine AS builder
 WORKDIR /app
@@ -1613,17 +1616,13 @@ FROM nginx:alpine
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 
 # Copy built application from builder
-COPY --from=builder /app/dist /usr/share/nginx/html
-COPY --from=builder /app/build /usr/share/nginx/html
+COPY --from=builder /app/${buildDir} /usr/share/nginx/html
 
 EXPOSE 80
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
   CMD wget --quiet --tries=1 --spider http://localhost/ || exit 1
-
-# Run as non-root user
-USER nginx
 
 CMD ["nginx", "-g", "daemon off;"]`;
     }
