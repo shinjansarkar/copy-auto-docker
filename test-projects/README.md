@@ -2,6 +2,42 @@
 
 This directory contains 50 diverse test projects to comprehensively test the Auto-Docker extension.
 
+## 🚀 Quick Start
+
+### 1. Check Your Environment
+```bash
+./check-environment.sh
+```
+This will verify:
+- Docker is installed and running
+- Required tools (jq, curl) are available
+- Sufficient disk space
+- How many projects have Dockerfiles
+
+### 2. Run Comprehensive Tests
+```bash
+./comprehensive-test.sh
+```
+This will:
+- Test all 50 projects (frontend, backend, fullstack)
+- Build Docker images
+- Run containers and check health
+- Test endpoints
+- Log everything to a single file
+- Generate JSON and CSV reports
+
+### 3. View Results
+```bash
+./view-results.sh
+```
+Interactive menu to:
+- View test summary
+- See failed/passed tests
+- Analyze build times
+- Export reports
+
+**See [TESTING-GUIDE.md](TESTING-GUIDE.md) for detailed documentation.**
+
 ## Project Structure
 
 ```

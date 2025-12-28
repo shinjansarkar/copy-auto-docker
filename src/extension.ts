@@ -449,16 +449,17 @@ async function generateWithTwoStepAI(): Promise<void> {
 
 /**
  * Helper: Write generated files to workspace
+ * Updated to support Approach 2 structure: separate Dockerfiles in service directories
  */
 async function writeGeneratedFiles(workspaceRoot: string, files: any): Promise<void> {
-    // Write main Dockerfile
+    // Write main Dockerfile (for single-service projects like frontend-only or backend-only)
     if (files.dockerfile) {
         const dockerfilePath = path.join(workspaceRoot, 'Dockerfile');
         fs.writeFileSync(dockerfilePath, files.dockerfile, 'utf-8');
         outputChannel.appendLine('✅ Written: Dockerfile');
     }
 
-    // Write frontend Dockerfiles
+    // Write frontend Dockerfiles (includes Dockerfile and nginx.conf in frontend/ directory)
     if (files.frontendDockerfiles && files.frontendDockerfiles.length > 0) {
         for (const f of files.frontendDockerfiles) {
             const filePath = path.join(workspaceRoot, f.path);
@@ -471,7 +472,7 @@ async function writeGeneratedFiles(workspaceRoot: string, files: any): Promise<v
         }
     }
 
-    // Write backend Dockerfiles
+    // Write backend Dockerfiles (in backend/ directory)
     if (files.backendDockerfiles && files.backendDockerfiles.length > 0) {
         for (const f of files.backendDockerfiles) {
             const filePath = path.join(workspaceRoot, f.path);
@@ -484,21 +485,22 @@ async function writeGeneratedFiles(workspaceRoot: string, files: any): Promise<v
         }
     }
 
-    // Write docker-compose.yml
+    // Write docker-compose.yml at root
     if (files.dockerCompose) {
         const composePath = path.join(workspaceRoot, 'docker-compose.yml');
         fs.writeFileSync(composePath, files.dockerCompose, 'utf-8');
         outputChannel.appendLine('✅ Written: docker-compose.yml');
     }
 
-    // Write nginx.conf
-    if (files.nginxConf) {
+    // Write nginx.conf at root ONLY for single-service frontend projects
+    // For fullstack/monorepo, nginx.conf is written in frontend/ directory via frontendDockerfiles
+    if (files.nginxConf && (!files.frontendDockerfiles || files.frontendDockerfiles.length === 0)) {
         const nginxPath = path.join(workspaceRoot, 'nginx.conf');
         fs.writeFileSync(nginxPath, files.nginxConf, 'utf-8');
         outputChannel.appendLine('✅ Written: nginx.conf');
     }
 
-    // Write .dockerignore
+    // Write .dockerignore at root
     if (files.dockerignore) {
         const dockerignorePath = path.join(workspaceRoot, '.dockerignore');
         fs.writeFileSync(dockerignorePath, files.dockerignore, 'utf-8');

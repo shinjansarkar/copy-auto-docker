@@ -65,16 +65,21 @@ export class CleanComposeGenerator {
 
     /**
      * Generate docker-compose.yml for fullstack project
+     * Uses Approach 2: Separate Dockerfiles in frontend/ and backend/ directories
      */
     static generateFullstackCompose(
         frontend: DetectedFrontend,
         backend: DetectedBackend,
         databases?: DetectedDatabase[]
     ): string {
+        // Use actual detected paths (could be client/, frontend/, apps/web/, etc.)
+        const frontendPath = frontend.path === '.' ? './frontend' : `./${frontend.path}`;
+        const backendPath = backend.path === '.' ? './backend' : `./${backend.path}`;
+
         const frontendService: ComposeService = {
             name: 'frontend',
             type: 'frontend',
-            buildContext: frontend.path === '.' ? '.' : frontend.path,
+            buildContext: frontendPath,
             dockerfile: 'Dockerfile',
             ports: ['80:80'],
             dependsOn: ['backend']
@@ -83,7 +88,7 @@ export class CleanComposeGenerator {
         const backendService: ComposeService = {
             name: 'backend',
             type: 'backend',
-            buildContext: backend.path === '.' ? '.' : backend.path,
+            buildContext: backendPath,
             dockerfile: 'Dockerfile',
             ports: [`${backend.port || 8000}:${backend.port || 8000}`],
             envFile: '.env'
@@ -101,6 +106,7 @@ export class CleanComposeGenerator {
 
     /**
      * Generate docker-compose.yml for monorepo project
+     * Uses Approach 2: Separate Dockerfiles in respective service directories
      */
     static generateMonorepoCompose(
         frontends: DetectedFrontend[],
@@ -115,7 +121,7 @@ export class CleanComposeGenerator {
             const service: ComposeService = {
                 name: serviceName,
                 type: 'frontend',
-                buildContext: frontend.path,
+                buildContext: `./${frontend.path}`,
                 dockerfile: 'Dockerfile',
                 ports: ['80:80']
             };
@@ -134,7 +140,7 @@ export class CleanComposeGenerator {
             const service: ComposeService = {
                 name: serviceName,
                 type: 'backend',
-                buildContext: backend.path,
+                buildContext: `./${backend.path}`,
                 dockerfile: 'Dockerfile',
                 ports: [`${backend.port || 8000}:${backend.port || 8000}`],
                 envFile: `${backend.path}/.env`

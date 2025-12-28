@@ -290,13 +290,14 @@ export class DockerGenerationOrchestrator {
 
     /**
      * Generate files for fullstack project
+     * Uses Approach 2: Separate Dockerfiles in frontend/ and backend/ directories
      */
     private async generateFullstackFiles(
         detection: EnhancedDetectionResult,
         warnings: string[],
         skipped: string[]
     ): Promise<GeneratedDockerFiles> {
-        console.log('[Orchestrator] Generating fullstack files');
+        console.log('[Orchestrator] Generating fullstack files with Approach 2 structure');
 
         const { frontend, backend, databases } = detection;
         if (!frontend || !backend) {
@@ -310,46 +311,70 @@ export class DockerGenerationOrchestrator {
             backendDockerfiles: []
         };
 
-        // Generate frontend Dockerfile
+        const dockerignoreContent = SmartDockerfileGenerator.generateDockerignore();
+
+        // Use actual detected paths (e.g., client/, server/, frontend/, backend/, etc.)
+        const frontendPath = frontend.path === '.' ? 'frontend' : frontend.path;
+        const backendPath = backend.path === '.' ? 'backend' : backend.path;
+
+        // Generate frontend Dockerfile in frontend directory
         const frontendDockerfile = SmartDockerfileGenerator.generateFrontendDockerfile(frontend);
         files.frontendDockerfiles = [{
-            path: 'frontend/Dockerfile',
+            path: `${frontendPath}/Dockerfile`,
             content: frontendDockerfile
         }];
 
-        // Generate backend Dockerfile
+        // Add .dockerignore to frontend directory
+        files.frontendDockerfiles.push({
+            path: `${frontendPath}/.dockerignore`,
+            content: dockerignoreContent
+        });
+
+        // Generate backend Dockerfile in backend directory
         const backendDockerfile = SmartDockerfileGenerator.generateBackendDockerfile(backend);
         files.backendDockerfiles = [{
-            path: 'backend/Dockerfile',
+            path: `${backendPath}/Dockerfile`,
             content: backendDockerfile
         }];
 
-        // Generate nginx.conf with proxy
+        // Add .dockerignore to backend directory
+        files.backendDockerfiles.push({
+            path: `${backendPath}/.dockerignore`,
+            content: dockerignoreContent
+        });
+
+        // Generate nginx.conf in frontend directory (with backend proxy)
         const nginxGeneration = SimpleNginxGenerator.generateWithContext(true, true, this.basePath);
         if (nginxGeneration.shouldGenerate) {
             files.nginxConf = nginxGeneration.config!;
+            // Store nginx.conf in frontend directory
+            files.frontendDockerfiles.push({
+                path: `${frontendPath}/nginx.conf`,
+                content: nginxGeneration.config!
+            });
         } else {
             skipped.push('nginx.conf: ' + nginxGeneration.reason);
         }
 
-        // Generate docker-compose.yml
+        // Generate docker-compose.yml at root
         files.dockerCompose = CleanComposeGenerator.generateFullstackCompose(frontend, backend, databases);
 
-        // Generate .dockerignore
-        files.dockerignore = SmartDockerfileGenerator.generateDockerignore();
+        // Generate .dockerignore at root
+        files.dockerignore = dockerignoreContent;
 
         return files;
     }
 
     /**
      * Generate files for monorepo project
+     * Uses Approach 2: Separate Dockerfiles in respective service directories
      */
     private async generateMonorepoFiles(
         detection: EnhancedDetectionResult,
         warnings: string[],
         skipped: string[]
     ): Promise<GeneratedDockerFiles> {
-        console.log('[Orchestrator] Generating monorepo files');
+        console.log('[Orchestrator] Generating monorepo files with Approach 2 structure');
 
         const { monorepo, databases } = detection;
         if (!monorepo) {
@@ -363,29 +388,25 @@ export class DockerGenerationOrchestrator {
             backendDockerfiles: []
         };
 
-        // Generate frontend Dockerfiles
+        const dockerignoreContent = SmartDockerfileGenerator.generateDockerignore();
+
+        // Generate frontend Dockerfiles in respective directories
         for (const frontend of monorepo.frontends) {
             const dockerfile = SmartDockerfileGenerator.generateFrontendDockerfile(frontend);
             files.frontendDockerfiles!.push({
                 path: `${frontend.path}/Dockerfile`,
                 content: dockerfile
             });
-        }
 
-        // Generate backend Dockerfiles
-        for (const backend of monorepo.backends) {
-            const dockerfile = SmartDockerfileGenerator.generateBackendDockerfile(backend);
-            files.backendDockerfiles!.push({
-                path: `${backend.path}/Dockerfile`,
-                content: dockerfile
+            // Add .dockerignore to each frontend directory
+            files.frontendDockerfiles!.push({
+                path: `${frontend.path}/.dockerignore`,
+                content: dockerignoreContent
             });
-        }
 
-        // Generate nginx.conf
-        const hasFrontend = monorepo.frontends.length > 0;
-        const hasBackend = monorepo.backends.length > 0;
-
-        if (hasFrontend) {
+            // Generate nginx.conf for each frontend in its directory
+            const hasFrontend = true;
+            const hasBackend = monorepo.backends.length > 0;
             const nginxGeneration = SimpleNginxGenerator.generateWithContext(
                 hasFrontend,
                 hasBackend,
@@ -393,21 +414,37 @@ export class DockerGenerationOrchestrator {
             );
 
             if (nginxGeneration.shouldGenerate) {
-                files.nginxConf = nginxGeneration.config!;
-            } else {
-                skipped.push('nginx.conf: ' + nginxGeneration.reason);
+                files.frontendDockerfiles!.push({
+                    path: `${frontend.path}/nginx.conf`,
+                    content: nginxGeneration.config!
+                });
             }
         }
 
-        // Generate docker-compose.yml
+        // Generate backend Dockerfiles in respective directories
+        for (const backend of monorepo.backends) {
+            const dockerfile = SmartDockerfileGenerator.generateBackendDockerfile(backend);
+            files.backendDockerfiles!.push({
+                path: `${backend.path}/Dockerfile`,
+                content: dockerfile
+            });
+
+            // Add .dockerignore to each backend directory
+            files.backendDockerfiles!.push({
+                path: `${backend.path}/.dockerignore`,
+                content: dockerignoreContent
+            });
+        }
+
+        // Generate docker-compose.yml at root
         files.dockerCompose = CleanComposeGenerator.generateMonorepoCompose(
             monorepo.frontends,
             monorepo.backends,
             databases
         );
 
-        // Generate .dockerignore
-        files.dockerignore = SmartDockerfileGenerator.generateDockerignore();
+        // Generate .dockerignore at root
+        files.dockerignore = dockerignoreContent;
 
         return files;
     }
