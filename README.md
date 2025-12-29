@@ -106,9 +106,6 @@ Automatically generate production-ready Docker configurations for **ANY** fullst
 - **Redis Streams** (detected from Redis usage)
 - **ActiveMQ** (legacy support)
 
-### 🔍 Search & Analytics
-- **Elasticsearch** (v8.x with shard allocation)
-- **OpenSearch** (v2.x compatible)
 
 ### 🌐 Reverse Proxies
 - **Nginx** (default, with WebSocket support and gzip compression)
@@ -247,110 +244,25 @@ Automatically detects and generates for:
 - **Yarn Workspaces**: `workspaces` field in root package.json
 - **pnpm Workspaces**: `pnpm-workspace.yaml` patterns
 
-## 🔥 Real-World Examples
+## 🔥 Example Use Cases
 
-### Example 1: MERN Stack
-**Project Structure:**
-```
-mern-app/
-├── client/          (React + Vite)
-├── server/          (Express.js)
-├── package.json     (Root workspaces)
-```
+### MERN Stack (React + Express + MongoDB + Redis)
+- ✅ Detects React frontend, Express backend
+- ✅ Generates separate Dockerfiles for each
+- ✅ Creates docker-compose.yml with all services
+- ✅ Includes nginx reverse proxy & health checks
 
-**Generated docker-compose.yml:**
-```yaml
-version: '3.8'
-services:
-  frontend:
-    build:
-      context: ./client
-      dockerfile: Dockerfile
-    ports: ["3000:80"]
-    depends_on: [backend]
-    environment:
-      REACT_APP_API_URL: http://localhost:3001
+### Django + PostgreSQL + RabbitMQ
+- ✅ Detects Django backend, PostgreSQL, RabbitMQ
+- ✅ Auto-configures service dependencies
+- ✅ Sets up environment variables
+- ✅ Includes Celery worker configuration
 
-  backend:
-    build:
-      context: ./server
-      dockerfile: Dockerfile
-    ports: ["3001:3000"]
-    depends_on: [mongodb, redis]
-    environment:
-      MONGODB_URL: mongodb://mongodb:27017/mydb
-      REDIS_URL: redis://redis:6379
-
-  mongodb:
-    image: mongo:7
-    volumes: [mongodb_data:/data/db]
-
-  redis:
-    image: redis:7-alpine
-    command: redis-server --appendonly yes
-    volumes: [redis_data:/data]
-
-volumes:
-  mongodb_data:
-  redis_data:
-```
-
-**Generated Files:**
-- ✅ `client/Dockerfile` - React multi-stage build
-- ✅ `server/Dockerfile` - Node.js optimized
-- ✅ `docker-compose.yml` - Complete orchestration
-- ✅ `nginx.conf` - Reverse proxy with API routing
-- ✅ `.env.example` - Environment template
-
-### Example 2: Django + PostgreSQL + Redis
-**Detection:**
-- Backend: Django
-- Database: PostgreSQL
-- Cache: Redis
-- Message Queue: RabbitMQ (if detected)
-
-**Generated Services:**
-```yaml
-services:
-  backend:
-    build: .
-    depends_on: [postgresql, redis, rabbitmq]
-    environment:
-      DATABASE_URL: postgresql://user:password@postgresql:5432/mydb
-      REDIS_URL: redis://redis:6379
-      CELERY_BROKER_URL: amqp://guest:guest@rabbitmq:5672//
-
-  postgresql:
-    image: postgres:15-alpine
-    healthcheck:
-      test: ["CMD", "pg_isready", "-U", "user"]
-
-  redis:
-    image: redis:7-alpine
-    command: redis-server --appendonly yes
-
-  rabbitmq:
-    image: rabbitmq:3-management-alpine
-    ports: ["15672:15672"]
-```
-
-### Example 3: Nx Monorepo
-**Project Structure:**
-```
-nx-monorepo/
-├── apps/
-│   ├── frontend-app/     (React)
-│   ├── backend-api/      (NestJS)
-│   └── mobile/           (React Native)
-├── libs/
-│   └── shared/           (Shared code)
-```
-
-**Generated:**
-- ✅ Individual Dockerfile for each app
-- ✅ docker-compose.yml with all services
-- ✅ Proper service networking and dependencies
-- ✅ Environment files for each environment
+### Monorepo (Turborepo, Nx, Lerna)
+- ✅ Auto-detects workspace structure
+- ✅ Generates Dockerfile for each workspace
+- ✅ Orchestrates all services with docker-compose
+- ✅ Proper networking and volume setup
 
 ## ⚙️ Extension Settings
 
@@ -626,27 +538,6 @@ ls -la */*/       # View test projects
 - 🔧 [VS Code Extension API](https://code.visualstudio.com/api)
 - 🤖 [OpenAI API Docs](https://platform.openai.com/docs)
 - 🧠 [Google Gemini API](https://ai.google.dev/)
-
-## 🗓️ Roadmap
-
-### v2.8.0 (Q1 2025)
-- [ ] Kubernetes manifest generation (YAML auto-generation)
-- [ ] CI/CD pipeline generation (GitHub Actions, GitLab CI, Jenkins)
-- [ ] Advanced caching strategies (BuildKit, layer optimization)
-- [ ] Service mesh support detection (Istio, Linkerd)
-
-### v3.0.0 (Q2 2025)
-- [ ] Visual docker-compose editor
-- [ ] Cost estimation for cloud deployments (AWS, GCP, Azure)
-- [ ] Security scanning integration
-- [ ] Multi-environment configuration (dev, staging, prod)
-- [ ] Terraform/IaC generation
-
-### v3.1.0 (Q3 2025)
-- [ ] Performance profiling tools
-- [ ] Auto-scaling configuration
-- [ ] Load balancing setup
-- [ ] Database migration scripts
 
 ## 📄 License
 
