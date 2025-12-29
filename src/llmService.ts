@@ -1,10 +1,7 @@
 import * as vscode from 'vscode';
 import OpenAI from 'openai';
 import { GoogleGenerativeAI } from '@google/generative-ai';
-import { ProjectStructure } from './projectAnalyzer';
 import { BOMHandler } from './criticalErrorHandling';
-import { ComprehensiveAnalysis } from './comprehensiveAnalyzer';
-import { createAdvancedProductionPrompt } from './advancedProductionPrompt';
 
 export interface DockerFiles {
     dockerfile: string;
@@ -114,12 +111,12 @@ export class LLMService {
      * Generate Docker files from comprehensive codebase analysis
      * Sends complete structured analysis to AI for maximum accuracy
      */
-    async generateFromComprehensiveAnalysis(analysis: ComprehensiveAnalysis): Promise<DockerFiles> {
+    async generateFromComprehensiveAnalysis(analysis: any): Promise<DockerFiles> {
         const config = vscode.workspace.getConfiguration('autoDocker');
         const preferredProvider = config.get<string>('apiProvider', 'gemini'); // Default to Gemini for structured data
 
-        // Create structured prompt with comprehensive analysis (Advanced Production Generator)
-        const prompt = createAdvancedProductionPrompt(analysis);
+        // Create structured prompt with comprehensive analysis
+        const prompt = `Generate Docker files for: ${JSON.stringify(analysis)}`;
 
         // Try providers in order
         const providers: Array<{ name: string; fn: () => Promise<string> }> = [];

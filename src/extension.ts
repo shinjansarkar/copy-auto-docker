@@ -1,7 +1,6 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
-import { ProjectAnalyzer } from './projectAnalyzer';
 import { EnhancedProjectAnalyzer } from './enhancedProjectAnalyzer';
 import { LLMService } from './llmService';
 import { FileManager } from './fileManager';
@@ -19,7 +18,6 @@ import {
 // Export for verification/testing
 export { DockerGenerationOrchestrator } from './dockerGenerationOrchestrator';
 export { EnhancedDetectionEngine } from './enhancedDetectionEngine';
-export { ProjectAnalyzer } from './projectAnalyzer';
 
 
 let outputChannel: vscode.OutputChannel;
@@ -74,7 +72,7 @@ async function analyzeProject(skipPreview: boolean = false): Promise<void> {
     try {
         outputChannel.clear();
         outputChannel.show(true);
-        outputChannel.appendLine('🔍 Starting project analysis...');
+        outputChannel.appendLine('🔍 Ohhh let me see what you built! 👀');
 
         // CRITICAL FIX #1: Multi-workspace folder handling
         const workspaceRoot = await MultiWorkspaceManager.getActiveWorkspaceFolder();
@@ -110,7 +108,7 @@ async function analyzeProject(skipPreview: boolean = false): Promise<void> {
             try {
                 // Step 1: Analyze project structure
                 progress.report({ increment: 20, message: "Analyzing project structure..." });
-                outputChannel.appendLine('📁 Analyzing project structure...');
+                outputChannel.appendLine('📁 Wow, nice project structure!');
 
                 // Use enhanced analyzer for better code understanding
                 const config = vscode.workspace.getConfiguration('autoDocker');
@@ -135,7 +133,7 @@ async function analyzeProject(skipPreview: boolean = false): Promise<void> {
 
                 // Step 2: Generate Docker files using LLM
                 progress.report({ increment: 40, message: "Generating Docker configuration..." });
-                outputChannel.appendLine('🤖 Generating Docker files...');
+                outputChannel.appendLine('🤖 Ohhhhh AI INCOMING! 🚨');
 
                 const llmService = new LLMService();
                 const dockerFiles = await llmService.generateDockerFiles(projectStructure);
@@ -148,7 +146,7 @@ async function analyzeProject(skipPreview: boolean = false): Promise<void> {
                     throw new Error('LLM generated incomplete Docker files');
                 }
 
-                outputChannel.appendLine('✅ Docker files generated');
+                outputChannel.appendLine('✅ YESSS DOCKER FILES ARE HERE!!! 🎉');
 
                 // Step 3: Preview and confirm
                 progress.report({ increment: 70, message: "Preparing preview..." });
@@ -177,13 +175,13 @@ async function analyzeProject(skipPreview: boolean = false): Promise<void> {
 
                 // Step 4: Write files
                 progress.report({ increment: 90, message: "Writing files..." });
-                outputChannel.appendLine('📝 Writing Docker files to workspace...');
+                outputChannel.appendLine('📝 Zoooom! Writing files at lightspeed!');
 
                 await fileManager.writeDockerFiles(dockerFiles, projectStructure);
 
                 progress.report({ increment: 100, message: "Complete!" });
-                outputChannel.appendLine('✅ Docker files generated successfully!');
-                vscode.window.showInformationMessage('✅ Docker files generated successfully!');
+                outputChannel.appendLine('⚡ LET\'S GOOOOO! DEPLOY TIME! 🚀');
+                vscode.window.showInformationMessage('⚡ Docker files generated! LET\'S GOOOO! 🚀');
             } catch (innerError) {
                 const errorMsg = innerError instanceof Error ? innerError.message : 'Unknown error';
                 outputChannel.appendLine(`❌ Error: ${errorMsg}`);

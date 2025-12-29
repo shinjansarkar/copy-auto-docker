@@ -185,9 +185,12 @@ export class EnhancedDetectionEngine {
             const hasPackagesFolder = fs.existsSync(path.join(this.basePath, 'packages'));
 
             if (hasAppsFolder || hasPackagesFolder) {
+                // Get workspaces from folders
+                const workspaces = await this.getWorkspaces('yarn');
                 return {
                     isMonorepo: true,
                     tool: 'yarn',
+                    workspaces,
                     frontends: [],
                     backends: []
                 };
@@ -239,10 +242,12 @@ export class EnhancedDetectionEngine {
                 }
 
                 if (hasProject) {
+                    // Try to get workspaces from package.json first, fallback to detected spaces
+                    const workspacesFromPackageJson = await this.getWorkspaces('yarn');
                     return {
                         isMonorepo: true,
                         tool: 'yarn', // Default
-                        workspaces: spaces,
+                        workspaces: workspacesFromPackageJson.length > 0 ? workspacesFromPackageJson : spaces,
                         frontends: [],
                         backends: []
                     };
@@ -294,7 +299,61 @@ export class EnhancedDetectionEngine {
     private async getWorkspaces(tool?: MonorepoInfo['tool']): Promise<string[]> {
         const workspaces: string[] = [];
 
-        // Common workspace folders
+        // First, try to read workspaces from package.json
+        const packageJsonPath = path.join(this.basePath, 'package.json');
+        
+        if (fs.existsSync(packageJsonPath)) {
+            try {
+                const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf-8'));
+                
+                // Check for workspaces field (yarn/npm workspaces)
+                if (packageJson.workspaces) {
+                    let workspacePatterns: string[] = [];
+                    
+                    // workspaces can be array or object with "packages" field
+                    if (Array.isArray(packageJson.workspaces)) {
+                        workspacePatterns = packageJson.workspaces;
+                    } else if (packageJson.workspaces.packages) {
+                        workspacePatterns = packageJson.workspaces.packages;
+                    }
+                    
+                    // Expand workspace patterns
+                    for (const pattern of workspacePatterns) {
+                        // Handle glob patterns like "packages/*" or "apps/*"
+                        if (pattern.includes('*')) {
+                            const baseFolder = pattern.replace('/*', '');
+                            const folderPath = path.join(this.basePath, baseFolder);
+                            
+                            if (fs.existsSync(folderPath) && fs.statSync(folderPath).isDirectory()) {
+                                const subDirs = fs.readdirSync(folderPath)
+                                    .filter(item => {
+                                        const itemPath = path.join(folderPath, item);
+                                        return fs.statSync(itemPath).isDirectory() && item !== 'node_modules';
+                                    })
+                                    .map(item => `${baseFolder}/${item}`);
+                                
+                                workspaces.push(...subDirs);
+                            }
+                        } else {
+                            // Direct folder reference like "client" or "server"
+                            const folderPath = path.join(this.basePath, pattern);
+                            if (fs.existsSync(folderPath) && fs.statSync(folderPath).isDirectory()) {
+                                workspaces.push(pattern);
+                            }
+                        }
+                    }
+                    
+                    // If we found workspaces in package.json, return them
+                    if (workspaces.length > 0) {
+                        return workspaces;
+                    }
+                }
+            } catch (e) {
+                console.warn('[EnhancedDetectionEngine] Failed to parse package.json for workspaces');
+            }
+        }
+        
+        // Fallback: Scan common workspace folders
         const commonFolders = [
             'apps', 'packages', 'services', 'modules', 'libs',
             'microservices', 'functions', 'projects', 'workspaces'

@@ -1,7 +1,6 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import { DockerFiles } from './llmService';
-import { ProjectStructure } from './projectAnalyzer';
 import {
     PathSanitizer,
     DockerignoreGenerator,
@@ -15,7 +14,7 @@ export class FileManager {
         this.workspaceRoot = workspaceRoot;
     }
 
-    async writeDockerFiles(dockerFiles: DockerFiles, projectStructure?: ProjectStructure): Promise<void> {
+    async writeDockerFiles(dockerFiles: DockerFiles, projectStructure?: any): Promise<void> {
         const config = vscode.workspace.getConfiguration('autoDocker');
         const customPath = config.get<string>('dockerOutputPath', '');
         const overwriteFiles = config.get<boolean>('overwriteFiles', false);

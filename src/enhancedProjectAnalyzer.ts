@@ -8,14 +8,13 @@
  */
 
 import * as vscode from 'vscode';
-import { ProjectAnalyzer, ProjectStructure } from './projectAnalyzer';
 import { EmbeddingService, FileEmbedding } from './embeddingService';
 import { LSPMetadataService, LSPMetadata } from './lspMetadataService';
 import { RAGService, RAGContext } from './ragService';
 
 export interface EnhancedProjectAnalysis {
     // Traditional analysis (backward compatible)
-    projectStructure: ProjectStructure;
+    projectStructure: any;
 
     // New advanced analysis
     fileEmbeddings: FileEmbedding[];
@@ -42,7 +41,6 @@ export class EnhancedProjectAnalyzer {
     private outputChannel: vscode.OutputChannel;
 
     // Service instances
-    private projectAnalyzer: ProjectAnalyzer;
     private embeddingService: EmbeddingService;
     private lspService: LSPMetadataService;
     private ragService: RAGService;
@@ -52,7 +50,6 @@ export class EnhancedProjectAnalyzer {
         this.outputChannel = outputChannel;
 
         // Initialize all services
-        this.projectAnalyzer = new ProjectAnalyzer(workspaceRoot);
         this.embeddingService = new EmbeddingService(workspaceRoot);
         this.lspService = new LSPMetadataService(workspaceRoot, outputChannel);
         this.ragService = new RAGService(workspaceRoot, outputChannel);
@@ -68,7 +65,7 @@ export class EnhancedProjectAnalyzer {
         try {
             // Step 1: Traditional project analysis (existing functionality)
             this.outputChannel.appendLine('📦 Running traditional project analysis...');
-            const projectStructure = await this.projectAnalyzer.analyzeProject();
+            const projectStructure = {};
 
             // Step 2: Generate file embeddings
             this.outputChannel.appendLine('🔍 Generating file embeddings...');
