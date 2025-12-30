@@ -63,7 +63,7 @@ export class EnhancedProjectAnalyzer {
         try {
             // Step 1: Traditional project analysis - ACTUALLY DETECT THE PROJECT
             const detectionEngine = new EnhancedDetectionEngine(this.workspaceRoot);
-            const detectionResult = await detectionEngine.detectProject();
+            const detectionResult = await detectionEngine.detect();
             
             // Convert detection result to projectStructure format
             const projectStructure: any = {
