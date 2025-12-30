@@ -70,6 +70,9 @@ export interface EnhancedDetectionResult {
     hasDockerfile: boolean;
     hasDockerCompose: boolean;
     hasNginxConfig: boolean;
+    isMonorepo?: boolean;
+    envFiles?: string[];
+    envVars?: string[];
 }
 
 /**
@@ -407,6 +410,7 @@ export class EnhancedDetectionEngine {
 
         // Detect databases
         const databases = await this.detectDatabases();
+        const envFiles = this.detectEnvFiles();
 
         return {
             projectType: 'monorepo',
@@ -414,7 +418,10 @@ export class EnhancedDetectionEngine {
             databases,
             hasDockerfile: this.checkFileExists('Dockerfile'),
             hasDockerCompose: this.checkFileExists('docker-compose.yml') || this.checkFileExists('docker-compose.yaml'),
-            hasNginxConfig: this.checkFileExists('nginx.conf')
+            hasNginxConfig: this.checkFileExists('nginx.conf'),
+            isMonorepo: true,
+            envFiles: envFiles,
+            envVars: []
         };
     }
 
@@ -427,6 +434,7 @@ export class EnhancedDetectionEngine {
         const frontend = await this.detectFrontend(this.basePath, '.');
         const backend = await this.detectBackend(this.basePath, '.');
         const databases = await this.detectDatabases();
+        const envFiles = this.detectEnvFiles();
 
         // Determine project type
         let projectType: ProjectType;
@@ -452,7 +460,10 @@ export class EnhancedDetectionEngine {
             databases,
             hasDockerfile: this.checkFileExists('Dockerfile'),
             hasDockerCompose: this.checkFileExists('docker-compose.yml') || this.checkFileExists('docker-compose.yaml'),
-            hasNginxConfig: this.checkFileExists('nginx.conf')
+            hasNginxConfig: this.checkFileExists('nginx.conf'),
+            isMonorepo: false,
+            envFiles: envFiles,
+            envVars: []
         };
     }
 
@@ -1008,6 +1019,23 @@ export class EnhancedDetectionEngine {
         }
 
         return databases;
+    }
+
+    /**
+     * Detect environment files (.env, .env.local, etc.)
+     */
+    private detectEnvFiles(): string[] {
+        const envFiles: string[] = [];
+        const envPatterns = ['.env', '.env.local', '.env.development', '.env.production', '.env.example'];
+        
+        for (const pattern of envPatterns) {
+            const envPath = path.join(this.basePath, pattern);
+            if (fs.existsSync(envPath)) {
+                envFiles.push(pattern);
+            }
+        }
+        
+        return envFiles;
     }
 
     /**

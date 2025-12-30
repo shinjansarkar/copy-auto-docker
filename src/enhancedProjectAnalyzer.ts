@@ -11,6 +11,7 @@ import * as vscode from 'vscode';
 import { EmbeddingService, FileEmbedding } from './embeddingService';
 import { LSPMetadataService, LSPMetadata } from './lspMetadataService';
 import { RAGService, RAGContext } from './ragService';
+import { EnhancedDetectionEngine } from './enhancedDetectionEngine';
 
 export interface EnhancedProjectAnalysis {
     // Traditional analysis (backward compatible)
@@ -59,31 +60,37 @@ export class EnhancedProjectAnalyzer {
      * Main method: Perform comprehensive codebase analysis
      */
     async analyzeWithAdvancedFeatures(model: string = 'gpt-4'): Promise<EnhancedProjectAnalysis> {
-        this.outputChannel.appendLine('\n🚀 Enhanced Project Analysis Started...');
-        this.outputChannel.appendLine('━'.repeat(60));
-
         try {
-            // Step 1: Traditional project analysis (existing functionality)
-            this.outputChannel.appendLine('📦 Running traditional project analysis...');
-            const projectStructure = {};
+            // Step 1: Traditional project analysis - ACTUALLY DETECT THE PROJECT
+            const detectionEngine = new EnhancedDetectionEngine(this.workspaceRoot);
+            const detectionResult = await detectionEngine.detectProject();
+            
+            // Convert detection result to projectStructure format
+            const projectStructure: any = {
+                projectType: detectionResult.projectType,
+                frontend: detectionResult.frontend?.framework,
+                backend: detectionResult.backend?.framework,
+                database: detectionResult.database?.type,
+                databases: detectionResult.databases?.map(db => db.type) || [],
+                isMonorepo: detectionResult.isMonorepo,
+                hasEnvFile: detectionResult.envFiles && detectionResult.envFiles.length > 0,
+                envVars: detectionResult.envVars || [],
+                packageManager: detectionResult.frontend?.packageManager || detectionResult.backend?.packageManager,
+                isFrontendOnly: detectionResult.projectType === 'frontend',
+                isBackendOnly: detectionResult.projectType === 'backend',
+                isFullstack: detectionResult.projectType === 'fullstack'
+            };
 
             // Step 2: Generate file embeddings
-            this.outputChannel.appendLine('🔍 Generating file embeddings...');
             const fileEmbeddings = await this.embeddingService.generateFileEmbeddings();
-            this.outputChannel.appendLine(`   Found ${fileEmbeddings.length} files with importance scores`);
 
             // Step 3: Extract LSP metadata
-            this.outputChannel.appendLine('🔬 Extracting LSP metadata...');
             const lspMetadata = await this.lspService.extractMetadata();
-            this.outputChannel.appendLine(`   Detected ${lspMetadata.frameworks.length} frameworks`);
 
             // Step 4: Build RAG context
-            this.outputChannel.appendLine('🧠 Building RAG context for AI...');
             const ragContext = await this.ragService.buildContext(model);
-            this.outputChannel.appendLine(`   Context built: ${ragContext.criticalFiles.length} files, ~${ragContext.totalTokens} tokens`);
 
             // Step 5: Generate comprehensive analysis summary
-            this.outputChannel.appendLine('📊 Generating analysis summary...');
             const analysisSummary = this.generateAnalysisSummary(
                 projectStructure,
                 fileEmbeddings,
@@ -97,10 +104,6 @@ export class EnhancedProjectAnalyzer {
                 fileEmbeddings,
                 lspMetadata
             );
-
-            this.outputChannel.appendLine('━'.repeat(60));
-            this.outputChannel.appendLine('✅ Enhanced Analysis Complete!\n');
-            this.displayAnalysisSummary(codebaseInsights);
 
             return {
                 projectStructure,
@@ -212,13 +215,7 @@ export class EnhancedProjectAnalyzer {
      * Display analysis summary in output channel
      */
     private displayAnalysisSummary(insights: CodebaseInsights): void {
-        this.outputChannel.appendLine('\n📊 CODEBASE INSIGHTS:');
-        this.outputChannel.appendLine(`   • Total Files: ${insights.totalFiles}`);
-        this.outputChannel.appendLine(`   • Critical Files: ${insights.criticalFiles}`);
-        this.outputChannel.appendLine(`   • Complexity: ${insights.estimatedComplexity.toUpperCase()}`);
-        this.outputChannel.appendLine(`   • Languages: ${insights.primaryLanguages.join(', ')}`);
-        this.outputChannel.appendLine(`   • Frameworks: ${insights.detectedFrameworks.join(', ')}`);
-        this.outputChannel.appendLine(`   • Strategy: ${insights.recommendedDockerStrategy}\n`);
+        // Removed verbose logging to keep output clean
     }
 
     /**

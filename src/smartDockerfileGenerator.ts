@@ -903,11 +903,6 @@ pnpm-debug.log
 coverage
 .nyc_output
 
-# Environment files
-.env
-.env.local
-.env.*.local
-
 # Editor directories
 .vscode
 .idea
@@ -921,12 +916,6 @@ coverage
 # OS files
 .DS_Store
 Thumbs.db
-
-# Build artifacts (will be built in container)
-dist
-build
-out
-.next
 
 # Logs
 logs

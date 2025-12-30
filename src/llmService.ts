@@ -10,6 +10,95 @@ export interface DockerFiles {
     nginxConf?: string;
 }
 
+export interface ProjectStructure {
+    projectType: string;
+    frontend?: string;
+    backend?: string;
+    database?: string;
+    databases?: string[];
+    files?: string[];
+    dependencies?: {
+        packageJson?: {
+            dependencies?: Record<string, string>;
+            devDependencies?: Record<string, string>;
+        };
+        requirementsTxt?: string;
+    };
+    hasMultiStage?: boolean;
+    description?: string;
+    hasEnvFile?: boolean;
+    envVars?: string[];
+    packageManager?: string;
+    buildCommand?: string;
+    outputDirectory?: string;
+    isFrontendOnly?: boolean;
+    isBackendOnly?: boolean;
+    isFullstack?: boolean;
+    isMonorepo?: boolean;
+    frontendPath?: string;
+    backendPath?: string;
+    cacheLayer?: string;
+    messageQueue?: string;
+    searchEngine?: string;
+}
+
+export interface ComprehensiveAnalysis {
+    projectRoot: string;
+    isMonorepo: boolean;
+    workspaces?: string[];
+    frontends: Array<{
+        path: string;
+        framework: string;
+        variant?: string;
+        version?: string;
+        packageManager: string;
+        buildTool?: string;
+        buildCommand?: string;
+        outputFolder: string;
+        port?: number;
+        hasTypeScript: boolean;
+        envFiles: string[];
+        dependencies?: Record<string, string>;
+        devDependencies?: Record<string, string>;
+    }>;
+    backends: Array<{
+        path: string;
+        framework: string;
+        language: string;
+        version?: string;
+        packageManager?: string;
+        mainFile?: string;
+        port?: number;
+        hasTests: boolean;
+        envFiles: string[];
+    }>;
+    databases: Array<{
+        type: string;
+        version?: string;
+    }>;
+    services: Record<string, any>;
+    buildTools: Record<string, any>;
+    environmentVariables: {
+        files: string[];
+        variables: Record<string, string>;
+    };
+    existingDockerFiles: Record<string, string>;
+    specialConfigs: {
+        hasPrisma: boolean;
+        hasGraphQL: boolean;
+        hasWebSocket: boolean;
+        hasAuth: boolean;
+        hasORM: boolean;
+        ormType?: string;
+    };
+    fileStructure: {
+        srcDir?: string;
+        publicDir?: string;
+        buildDir?: string;
+        testDir?: string;
+    };
+}
+
 export class LLMService {
     private openaiClient?: OpenAI;
     private geminiClient?: GoogleGenerativeAI;
@@ -176,7 +265,7 @@ export class LLMService {
 - **Workspaces**: ${analysis.workspaces?.join(', ') || 'N/A'}
 
 ## FRONTEND DETECTION
-${hasFrontend ? analysis.frontends.map((fe, i) => `
+${hasFrontend ? analysis.frontends.map((fe: any, i: number) => `
 ### Frontend #${i + 1}
 - **Path**: ${fe.path}
 - **Framework**: ${fe.framework}${fe.variant ? ` (${fe.variant})` : ''}
@@ -192,7 +281,7 @@ ${hasFrontend ? analysis.frontends.map((fe, i) => `
 `).join('\n') : '❌ NO FRONTEND DETECTED'}
 
 ## BACKEND DETECTION
-${hasBackend ? analysis.backends.map((be, i) => `
+${hasBackend ? analysis.backends.map((be: any, i: number) => `
 ### Backend #${i + 1}
 - **Path**: ${be.path}
 - **Framework**: ${be.framework}
@@ -206,7 +295,7 @@ ${hasBackend ? analysis.backends.map((be, i) => `
 `).join('\n') : '❌ NO BACKEND DETECTED'}
 
 ## DATABASE DETECTION
-${analysis.databases.length > 0 ? analysis.databases.map(db => `- **${db.type}**${db.version ? ` (${db.version})` : ''}`).join('\n') : '❌ NO DATABASE DETECTED'}
+${analysis.databases.length > 0 ? analysis.databases.map((db: any) => `- **${db.type}**${db.version ? ` (${db.version})` : ''}`).join('\n') : '❌ NO DATABASE DETECTED'}
 
 ## ADDITIONAL SERVICES
 ${Object.keys(analysis.services).length > 0 ? Object.entries(analysis.services).map(([key, value]) => `- **${key}**: ${JSON.stringify(value)}`).join('\n') : 'None'}
@@ -243,9 +332,10 @@ ${Object.entries(analysis.existingDockerFiles).map(([key, value]) => `- **${key}
 ❌ **NEVER** put nginx.conf content inside the Dockerfile
 ✅ **ALWAYS** generate nginx.conf as a SEPARATE file
 ✅ Reference it in Dockerfile with: COPY nginx.conf /etc/nginx/conf.d/default.conf
+⚠️ **CRITICAL**: Do NOT include events {} or http {} blocks in nginx.conf - only server {} block
 
 ## RULE #2: USE EXACT OUTPUT FOLDERS DETECTED
-${hasFrontend ? analysis.frontends.map(fe => `- For **${fe.framework}** at **${fe.path}**: Use **${fe.outputFolder}** directory`).join('\n') : ''}
+${hasFrontend ? analysis.frontends.map((fe: any) => `- For **${fe.framework}** at **${fe.path}**: Use **${fe.outputFolder}** directory`).join('\n') : ''}
 
 ## RULE #3: FRONTEND-ONLY vs FULLSTACK NGINX
 ${!hasBackend ? `
@@ -271,7 +361,7 @@ ${isMonorepo ? `
 ` : ''}
 
 ## RULE #5: PACKAGE MANAGER DETECTION
-${hasFrontend ? analysis.frontends.map(fe => `- **${fe.path}**: Use **${fe.packageManager}** with appropriate install command`).join('\n') : ''}
+${hasFrontend ? analysis.frontends.map((fe: any) => `- **${fe.path}**: Use **${fe.packageManager}** with appropriate install command`).join('\n') : ''}
 
 ## RULE #6: DO NOT GENERATE .env.example
 ❌ **NEVER** generate .env.example file
@@ -283,7 +373,7 @@ ${hasFrontend ? analysis.frontends.map(fe => `- **${fe.path}**: Use **${fe.packa
 - Stage 2: nginx:alpine (production serve)
 
 ## RULE #8: BACKEND FRAMEWORKS
-${hasBackend ? analysis.backends.map(be => {
+${hasBackend ? analysis.backends.map((be: any) => {
             if (be.language === 'python') {
                 if (be.framework.includes('fastapi')) {
                     return `- **FastAPI**: Install uvicorn, use CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]`;
@@ -339,7 +429,7 @@ Generate the following files:
             frontend: hasFrontend ? analysis.frontends[0].framework : undefined,
             backend: hasBackend ? analysis.backends[0].framework : undefined,
             database: analysis.databases.length > 0 ? analysis.databases[0].type : undefined,
-            databases: analysis.databases.map(db => db.type),
+            databases: analysis.databases.map((db: any) => db.type),
             files: [],
             dependencies: hasFrontend ? {
                 packageJson: {
@@ -531,6 +621,7 @@ ${isFrontend && !projectStructure.backend ? `
 - Generate SEPARATE nginx.conf file with production config
 - Dockerfile: COPY nginx.conf /etc/nginx/conf.d/default.conf
 - nginx.conf MUST include: try_files $uri $uri/ /index.html for SPA routing
+- nginx.conf should ONLY contain server {} block (NO events {} or http {} blocks)
 - docker-compose.yml: SINGLE service "web" on port 80 (NO separate nginx service)
 - NO /api/ proxy (no backend exists)
 ` : ''}
@@ -852,7 +943,7 @@ ${isFrontend || (projectStructure.backend && projectStructure.frontend) ? `
     }
 
     private generateFallbackDockerfile(projectStructure: ProjectStructure): string {
-        if (projectStructure.dependencies.packageJson) {
+        if (projectStructure.dependencies?.packageJson) {
             const pkg = projectStructure.dependencies.packageJson;
             const buildDir = this.getBuildDirectory(projectStructure);
 
@@ -1009,7 +1100,7 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \\
 ENTRYPOINT ["dumb-init", "--"]
 CMD ["npm", "start"]`;
             }
-        } else if (projectStructure.dependencies.requirementsTxt) {
+        } else if (projectStructure.dependencies?.requirementsTxt) {
             // Detect Flask/Django/FastAPI
             const requirements = projectStructure.dependencies.requirementsTxt.toLowerCase();
             const isFlask = requirements.includes('flask');
@@ -1478,8 +1569,6 @@ __pycache__
 venv
 .pytest_cache
 coverage
-dist
-build
 README.md`;
     }
 
@@ -1609,7 +1698,7 @@ RUN npm run build
 # Stage 2: Nginx Runtime
 FROM nginx:alpine
 
-# Copy custom nginx config (EXTERNAL FILE)
+# Copy custom nginx config (EXTERNAL FILE) - only server block, no events/http
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 
 # Copy built application from builder
