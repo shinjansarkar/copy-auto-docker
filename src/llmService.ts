@@ -188,7 +188,7 @@ ${hasFrontend ? analysis.frontends.map((fe, i) => `
 - **Port**: ${fe.port || 3000}
 - **TypeScript**: ${fe.hasTypeScript}
 - **Environment Files**: ${fe.envFiles.join(', ') || 'None'}
-- **Dependencies**: ${Object.keys(fe.dependencies).slice(0, 10).join(', ')}
+- **Dependencies**: ${fe.dependencies ? Object.keys(fe.dependencies).slice(0, 10).join(', ') : 'None'}
 `).join('\n') : '❌ NO FRONTEND DETECTED'}
 
 ## BACKEND DETECTION
@@ -216,8 +216,8 @@ ${Object.keys(analysis.buildTools).length > 0 ? Object.entries(analysis.buildToo
 
 ## ENVIRONMENT VARIABLES
 - **Files Found**: ${analysis.environmentVariables.files.join(', ') || 'None'}
-- **Variables Count**: ${Object.keys(analysis.environmentVariables.variables).length}
-- **Sample Variables**: ${Object.keys(analysis.environmentVariables.variables).slice(0, 10).join(', ')}
+- **Variables Count**: ${Object.keys(analysis.environmentVariables.variables || {}).length}
+- **Sample Variables**: ${analysis.environmentVariables.variables ? Object.keys(analysis.environmentVariables.variables).slice(0, 10).join(', ') : 'None'}
 
 ## EXISTING DOCKER FILES
 ${Object.entries(analysis.existingDockerFiles).map(([key, value]) => `- **${key}**: ${value || 'Not found'}`).join('\n')}
@@ -516,11 +516,11 @@ Generate PRODUCTION-READY Docker files following AutoDocker Policy:
 
 PROJECT: ${projectStructure.projectType}${projectStructure.frontend ? ` (${projectStructure.frontend})` : ''}${projectStructure.backend ? ` + ${projectStructure.backend}` : ''}${projectStructure.database ? ` + ${projectStructure.database}` : ''}
 
-FILES: ${projectStructure.files.slice(0, 10).join(', ')}
+FILES: ${projectStructure.files ? projectStructure.files.slice(0, 10).join(', ') : 'No files listed'}
 
 DEPS: ${JSON.stringify(projectStructure.dependencies?.packageJson?.dependencies || projectStructure.dependencies?.requirementsTxt?.split('\n').slice(0, 5) || {}, null, 0)}
 
-${projectStructure.hasEnvFile ? `⚠️ .env file detected with variables: ${projectStructure.envVars?.slice(0, 10).join(', ')}` : ''}
+${projectStructure.hasEnvFile ? `⚠️ .env file detected with variables: ${projectStructure.envVars ? projectStructure.envVars.slice(0, 10).join(', ') : 'env variables present'}` : ''}
 ${projectStructure.frontend?.includes('vite') ? `⚠️ CRITICAL: This is a VITE project - build output goes to ${buildDir} NOT build/` : ''}
 
 🔴 POLICY RULES (MUST FOLLOW):
