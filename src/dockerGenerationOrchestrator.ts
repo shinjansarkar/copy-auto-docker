@@ -1,24 +1,13 @@
-/**
- * Docker Generation Orchestrator
- * Integrates all components to generate complete Docker configurations
- * Orchestrates: Detection -> Generation -> Validation -> File Writing
- * 
- * NEW: Supports both legacy detection-based generation and two-step AI approach
- */
-
 import * as fs from 'fs';
 import * as path from 'path';
 import * as vscode from 'vscode';
-import { EnhancedDetectionEngine, EnhancedDetectionResult, ProjectType } from './enhancedDetectionEngine';
-import { SmartDockerfileGenerator } from './smartDockerfileGenerator';
-import { SimpleNginxGenerator } from './simpleNginxGenerator';
-import { CleanComposeGenerator } from './cleanComposeGenerator';
-import { TwoStepAIService } from './twoStepAIService';
+import { EnhancedDetectionEngine, EnhancedDetectionResult } from './enhancedDetectionEngine';
+import { DeterministicDockerGenerator, DeterministicGenerationResult } from './deterministicDockerGenerator';
 
 export interface GeneratedDockerFiles {
     dockerfile?: string;
     dockerCompose: string;
-    dockerignore: string;
+    dockerIgnore: string;
     nginxConf?: string;
     frontendDockerfiles?: Array<{ path: string; content: string }>;
     backendDockerfiles?: Array<{ path: string; content: string }>;
@@ -28,9 +17,10 @@ export interface GenerationResult {
     success: boolean;
     files: GeneratedDockerFiles;
     detectionResult?: EnhancedDetectionResult;
+    deterministicResult?: DeterministicGenerationResult;
     warnings: string[];
     skipped: string[];
-    usedTwoStepAI?: boolean;
+    usedDeterministic: boolean;
     architecture?: {
         containerCommunication: string;
         exposedPorts: string[];
@@ -41,137 +31,107 @@ export interface GenerationResult {
 
 /**
  * Docker Generation Orchestrator
+ * PRIMARY: Deterministic blueprint-based generation (rule-based, template-driven)
  */
 export class DockerGenerationOrchestrator {
     private basePath: string;
     private detectionEngine: EnhancedDetectionEngine;
-    private twoStepAI?: TwoStepAIService;
     private outputChannel?: vscode.OutputChannel;
-    private useTwoStepAI: boolean;
 
-    constructor(basePath: string, outputChannel?: vscode.OutputChannel, useTwoStepAI: boolean = false) {
+    constructor(
+        basePath: string,
+        outputChannel?: vscode.OutputChannel
+    ) {
         this.basePath = basePath;
         this.detectionEngine = new EnhancedDetectionEngine(basePath);
         this.outputChannel = outputChannel;
-        this.useTwoStepAI = useTwoStepAI;
-
-        // Initialize Two-Step AI if enabled
-        if (useTwoStepAI) {
-            this.twoStepAI = new TwoStepAIService(basePath, outputChannel);
-        }
     }
 
     /**
-     * Routes to either legacy or two-step AI approach
+     * Main generation method using Deterministic Blueprint-Based Generation
      */
     async generate(): Promise<GenerationResult> {
-        console.log('[DockerGenerationOrchestrator] Starting generation process...');
-
-        if (this.useTwoStepAI && this.twoStepAI) {
-            return await this.generateWithTwoStepAI();
-        } else {
-            return await this.generateLegacy();
-        }
-    }
-
-    /**
-     * NEW: Two-Step AI Generation
-     */
-    private async generateWithTwoStepAI(): Promise<GenerationResult> {
-        this.log('🤖 Using Two-Step AI Generation approach');
+        this.log('📐 Starting Deterministic Blueprint-Based Generation...');
 
         const warnings: string[] = [];
         const skipped: string[] = [];
 
         try {
-            // Run complete two-step workflow
-            const aiResult = await this.twoStepAI!.generateComplete();
+            // Step 1: Detection
+            this.log('🔍 Detecting project structure...');
+            const detectionResult = await this.detectionEngine.detect();
 
-            // Convert AI artifacts to our file format
+            // Step 2: Generate using deterministic generator
+            this.log('📝 Generating Docker files from blueprints...');
+            const generator = new DeterministicDockerGenerator(detectionResult);
+            const result = await generator.generate();
+
+            // Step 3: Convert to our file format
             const files: GeneratedDockerFiles = {
-                dockerCompose: '',
-                dockerignore: this.generateDefaultDockerignore()
+                dockerCompose: result.files.dockerCompose,
+                dockerIgnore: result.files.dockerignore,
+                frontendDockerfiles: [],
+                backendDockerfiles: []
             };
 
-            for (const artifact of aiResult.artifacts) {
-                const fileName = path.basename(artifact.filePath).toLowerCase();
-                
-                if (fileName === 'dockerfile') {
-                    files.dockerfile = artifact.content;
-                } else if (fileName === 'docker-compose.yml' || fileName === 'docker-compose.yaml') {
-                    files.dockerCompose = artifact.content;
-                } else if (fileName === 'nginx.conf') {
-                    files.nginxConf = artifact.content;
-                } else if (artifact.filePath.includes('frontend') && fileName === 'dockerfile') {
-                    if (!files.frontendDockerfiles) files.frontendDockerfiles = [];
-                    files.frontendDockerfiles.push({
-                        path: artifact.filePath,
-                        content: artifact.content
-                    });
-                } else if (artifact.filePath.includes('backend') && fileName === 'dockerfile') {
-                    if (!files.backendDockerfiles) files.backendDockerfiles = [];
-                    files.backendDockerfiles.push({
-                        path: artifact.filePath,
-                        content: artifact.content
-                    });
+            // Separate frontend and backend Dockerfiles
+            result.files.dockerfiles.forEach(df => {
+                const isFrontend = df.path.includes('frontend') || df.path.includes('web') || df.path.includes('client');
+                const isBackend = df.path.includes('backend') || df.path.includes('server') || df.path.includes('api');
+
+                if (isFrontend) {
+                    files.frontendDockerfiles!.push(df);
+                } else if (isBackend) {
+                    files.backendDockerfiles!.push(df);
+                } else {
+                    // Root Dockerfile
+                    files.dockerfile = df.content;
                 }
+            });
+
+            if (result.files.nginxConf) {
+                files.nginxConf = result.files.nginxConf;
             }
 
-            // Add assumptions as warnings for visibility
-            if (aiResult.assumptions && aiResult.assumptions.length > 0) {
-                warnings.push('Assumptions made by AI:');
-                warnings.push(...aiResult.assumptions.map(a => `  - ${a}`));
+            // Log architecture
+            this.log(`\n✅ Blueprint: ${result.blueprint.type}`);
+            this.log(`📦 Services: ${result.architecture.services.join(', ')}`);
+            this.log(`🔌 Exposed Ports: ${result.architecture.exposedPorts.join(', ')}`);
+
+            // Log assumptions
+            if (result.assumptions.length > 0) {
+                this.log('\n📋 Assumptions:');
+                result.assumptions.forEach(a => this.log(`   - ${a}`));
+            }
+
+            // Log warnings
+            if (result.warnings.length > 0) {
+                this.log('\n⚠️  Warnings:');
+                result.warnings.forEach(w => this.log(`   - ${w}`));
+                warnings.push(...result.warnings);
             }
 
             return {
                 success: true,
                 files,
+                detectionResult,
+                deterministicResult: result,
                 warnings,
                 skipped,
-                usedTwoStepAI: true,
-                architecture: aiResult.architecture,
-                assumptions: aiResult.assumptions
+                usedDeterministic: true,
+                architecture: {
+                    containerCommunication: result.architecture.topology,
+                    exposedPorts: result.architecture.exposedPorts.map(String),
+                    buildRuntimeSeparation: 'Multi-stage builds enforced by templates'
+                },
+                assumptions: result.assumptions
             };
 
         } catch (error) {
-            this.log(`❌ Two-Step AI generation failed: ${error}`);
-            this.log('Falling back to legacy detection-based generation...');
-            
-            // Fallback to legacy approach
-            return await this.generateLegacy();
+            const message = error instanceof Error ? error.message : String(error);
+            this.log(`❌ Generation failed: ${message}`);
+            throw error;
         }
-    }
-
-    /**
-     * LEGACY: Detection-based generation (original approach)
-     */
-    private async generateLegacy(): Promise<GenerationResult> {
-        console.log('[DockerGenerationOrchestrator] Using legacy detection-based generation');
-
-        const warnings: string[] = [];
-        const skipped: string[] = [];
-
-        // Step 1: Detect project structure
-        console.log('[Orchestrator] Step 1: Detection');
-        const detectionResult = await this.detectionEngine.detect();
-        console.log(`[Orchestrator] Detected project type: ${detectionResult.projectType}`);
-
-        // Step 2: Generate files based on detection
-        console.log('[Orchestrator] Step 2: Generation');
-        const files = await this.generateFiles(detectionResult, warnings, skipped);
-
-        // Step 3: Validate generated files
-        console.log('[Orchestrator] Step 3: Validation');
-        this.validateGeneratedFiles(files, warnings);
-
-        return {
-            success: true,
-            files,
-            detectionResult,
-            warnings,
-            skipped,
-            usedTwoStepAI: false
-        };
     }
 
     private log(message: string) {
@@ -181,348 +141,21 @@ export class DockerGenerationOrchestrator {
         console.log(`[Orchestrator] ${message}`);
     }
 
-    private generateDefaultDockerignore(): string {
-        return SmartDockerfileGenerator.generateDockerignore();
-    }
-
-    /**
-     * Generate all Docker files based on detection
-     */
-    private async generateFiles(
-        detection: EnhancedDetectionResult,
-        warnings: string[],
-        skipped: string[]
-    ): Promise<GeneratedDockerFiles> {
-        const { projectType } = detection;
-
-        switch (projectType) {
-            case 'frontend-only':
-                return this.generateFrontendOnlyFiles(detection, warnings, skipped);
-
-            case 'backend-only':
-                return this.generateBackendOnlyFiles(detection, warnings, skipped);
-
-            case 'fullstack':
-                return this.generateFullstackFiles(detection, warnings, skipped);
-
-            case 'monorepo':
-                return this.generateMonorepoFiles(detection, warnings, skipped);
-
-            default:
-                throw new Error(`Unknown project type: ${projectType}`);
-        }
-    }
-
-    /**
-     * Generate files for frontend-only project
-     */
-    private async generateFrontendOnlyFiles(
-        detection: EnhancedDetectionResult,
-        warnings: string[],
-        skipped: string[]
-    ): Promise<GeneratedDockerFiles> {
-        console.log('[Orchestrator] Generating frontend-only files');
-
-        const { frontend } = detection;
-        if (!frontend) {
-            throw new Error('Frontend detection failed');
-        }
-
-        const files: GeneratedDockerFiles = {
-            dockerCompose: '',
-            dockerignore: ''
-        };
-
-        // Generate Dockerfile
-        files.dockerfile = SmartDockerfileGenerator.generateFrontendDockerfile(frontend);
-
-        // Generate nginx.conf (check if should generate)
-        const nginxGeneration = SimpleNginxGenerator.generateWithContext(true, false, this.basePath);
-        if (nginxGeneration.shouldGenerate) {
-            files.nginxConf = nginxGeneration.config!;
-        } else {
-            skipped.push('nginx.conf: ' + nginxGeneration.reason);
-        }
-
-        // Generate docker-compose.yml
-        files.dockerCompose = CleanComposeGenerator.generateFrontendOnlyCompose(frontend);
-
-        // Generate .dockerignore
-        files.dockerignore = SmartDockerfileGenerator.generateDockerignore();
-
-        return files;
-    }
-
-    /**
-     * Generate files for backend-only project
-     */
-    private async generateBackendOnlyFiles(
-        detection: EnhancedDetectionResult,
-        warnings: string[],
-        skipped: string[]
-    ): Promise<GeneratedDockerFiles> {
-        console.log('[Orchestrator] Generating backend-only files');
-
-        const { backend, databases } = detection;
-        if (!backend) {
-            throw new Error('Backend detection failed');
-        }
-
-        const files: GeneratedDockerFiles = {
-            dockerCompose: '',
-            dockerignore: ''
-        };
-
-        // Generate Dockerfile
-        files.dockerfile = SmartDockerfileGenerator.generateBackendDockerfile(backend);
-
-        // NO nginx.conf for backend-only
-        skipped.push('nginx.conf: Backend-only project does not need nginx');
-
-        // Generate docker-compose.yml
-        files.dockerCompose = CleanComposeGenerator.generateBackendOnlyCompose(backend, databases);
-
-        // Generate .dockerignore
-        files.dockerignore = SmartDockerfileGenerator.generateDockerignore();
-
-        return files;
-    }
-
-    /**
-     * Generate files for fullstack project
-     * Uses Approach 2: Separate Dockerfiles in frontend/ and backend/ directories
-     */
-    private async generateFullstackFiles(
-        detection: EnhancedDetectionResult,
-        warnings: string[],
-        skipped: string[]
-    ): Promise<GeneratedDockerFiles> {
-        console.log('[Orchestrator] Generating fullstack files with Approach 2 structure');
-
-        const { frontend, backend, databases } = detection;
-        if (!frontend || !backend) {
-            throw new Error('Fullstack detection failed');
-        }
-
-        const files: GeneratedDockerFiles = {
-            dockerCompose: '',
-            dockerignore: '',
-            frontendDockerfiles: [],
-            backendDockerfiles: []
-        };
-
-        const dockerignoreContent = SmartDockerfileGenerator.generateDockerignore();
-
-        // Use actual detected paths (e.g., client/, server/, frontend/, backend/, etc.)
-        const frontendPath = frontend.path === '.' ? 'frontend' : frontend.path;
-        const backendPath = backend.path === '.' ? 'backend' : backend.path;
-
-        // Generate frontend Dockerfile in frontend directory
-        const frontendDockerfile = SmartDockerfileGenerator.generateFrontendDockerfile(frontend);
-        files.frontendDockerfiles = [{
-            path: `${frontendPath}/Dockerfile`,
-            content: frontendDockerfile
-        }];
-
-        // Add .dockerignore to frontend directory
-        files.frontendDockerfiles.push({
-            path: `${frontendPath}/.dockerignore`,
-            content: dockerignoreContent
-        });
-
-        // Generate backend Dockerfile in backend directory
-        const backendDockerfile = SmartDockerfileGenerator.generateBackendDockerfile(backend);
-        files.backendDockerfiles = [{
-            path: `${backendPath}/Dockerfile`,
-            content: backendDockerfile
-        }];
-
-        // Add .dockerignore to backend directory
-        files.backendDockerfiles.push({
-            path: `${backendPath}/.dockerignore`,
-            content: dockerignoreContent
-        });
-
-        // Generate nginx.conf in frontend directory (with backend proxy)
-        const nginxGeneration = SimpleNginxGenerator.generateWithContext(true, true, this.basePath);
-        if (nginxGeneration.shouldGenerate) {
-            files.nginxConf = nginxGeneration.config!;
-            // Store nginx.conf in frontend directory
-            files.frontendDockerfiles.push({
-                path: `${frontendPath}/nginx.conf`,
-                content: nginxGeneration.config!
-            });
-        } else {
-            skipped.push('nginx.conf: ' + nginxGeneration.reason);
-        }
-
-        // Generate docker-compose.yml at root
-        files.dockerCompose = CleanComposeGenerator.generateFullstackCompose(frontend, backend, databases);
-
-        // Generate .dockerignore at root
-        files.dockerignore = dockerignoreContent;
-
-        return files;
-    }
-
-    /**
-     * Generate files for monorepo project
-     * Uses Approach 2: Separate Dockerfiles in respective service directories
-     */
-    private async generateMonorepoFiles(
-        detection: EnhancedDetectionResult,
-        warnings: string[],
-        skipped: string[]
-    ): Promise<GeneratedDockerFiles> {
-        console.log('[Orchestrator] Generating monorepo files with Approach 2 structure');
-
-        const { monorepo, databases } = detection;
-        if (!monorepo) {
-            throw new Error('Monorepo detection failed');
-        }
-
-        const files: GeneratedDockerFiles = {
-            dockerCompose: '',
-            dockerignore: '',
-            frontendDockerfiles: [],
-            backendDockerfiles: []
-        };
-
-        const dockerignoreContent = SmartDockerfileGenerator.generateDockerignore();
-
-        // Generate frontend Dockerfiles in respective directories
-        for (const frontend of monorepo.frontends) {
-            const dockerfile = SmartDockerfileGenerator.generateFrontendDockerfile(frontend);
-            files.frontendDockerfiles!.push({
-                path: `${frontend.path}/Dockerfile`,
-                content: dockerfile
-            });
-
-            // Add .dockerignore to each frontend directory
-            files.frontendDockerfiles!.push({
-                path: `${frontend.path}/.dockerignore`,
-                content: dockerignoreContent
-            });
-
-            // Generate nginx.conf for each frontend in its directory
-            const hasFrontend = true;
-            const hasBackend = monorepo.backends.length > 0;
-            const nginxGeneration = SimpleNginxGenerator.generateWithContext(
-                hasFrontend,
-                hasBackend,
-                this.basePath
-            );
-
-            if (nginxGeneration.shouldGenerate) {
-                files.frontendDockerfiles!.push({
-                    path: `${frontend.path}/nginx.conf`,
-                    content: nginxGeneration.config!
-                });
-            }
-        }
-
-        // Generate backend Dockerfiles in respective directories
-        for (const backend of monorepo.backends) {
-            const dockerfile = SmartDockerfileGenerator.generateBackendDockerfile(backend);
-            files.backendDockerfiles!.push({
-                path: `${backend.path}/Dockerfile`,
-                content: dockerfile
-            });
-
-            // Add .dockerignore to each backend directory
-            files.backendDockerfiles!.push({
-                path: `${backend.path}/.dockerignore`,
-                content: dockerignoreContent
-            });
-        }
-
-        // Generate docker-compose.yml at root
-        files.dockerCompose = CleanComposeGenerator.generateMonorepoCompose(
-            monorepo.frontends,
-            monorepo.backends,
-            databases
-        );
-
-        // Generate .dockerignore at root
-        files.dockerignore = dockerignoreContent;
-
-        return files;
-    }
-
-    /**
-     * Validate generated files
-     */
-    private validateGeneratedFiles(files: GeneratedDockerFiles, warnings: string[]): void {
-        console.log('[Orchestrator] Validating generated files');
-
-        // Validate docker-compose.yml
-        const composeValidation = CleanComposeGenerator.validateCompose(files.dockerCompose);
-        if (!composeValidation.isValid) {
-            warnings.push(...composeValidation.errors.map(e => `docker-compose.yml: ${e}`));
-        }
-
-        // Check for unnecessary elements in compose
-        const composeChecks = CleanComposeGenerator.checkForUnnecessaryElements(files.dockerCompose);
-        if (composeChecks.warnings.length > 0) {
-            warnings.push(...composeChecks.warnings.map(w => `docker-compose.yml: ${w}`));
-        }
-
-        // Validate nginx.conf if it exists
-        if (files.nginxConf) {
-            const nginxValidation = SimpleNginxGenerator.validateNginxConfig(files.nginxConf);
-            if (!nginxValidation.isValid) {
-                warnings.push(...nginxValidation.errors.map(e => `nginx.conf: ${e}`));
-            }
-        }
-    }
-
     /**
      * Get user-friendly summary
      */
     static generateSummary(result: GenerationResult): string {
-        const { detectionResult, files, warnings, skipped, usedTwoStepAI, architecture, assumptions } = result;
+        const { deterministicResult, files, warnings, skipped, architecture, assumptions } = result;
 
         let summary = `## Docker Configuration Generated\n\n`;
-        
-        if (usedTwoStepAI) {
-            summary += `**Generation Method:** 🤖 Two-Step AI (Tree Analysis → File Generation)\n\n`;
-        } else {
-            summary += `**Generation Method:** 🔍 Legacy Detection-Based\n\n`;
+        summary += `**Generation Method:** 📐 Deterministic Blueprint-Based\n\n`;
+
+        if (deterministicResult) {
+            summary += `**Blueprint Used:** ${deterministicResult.blueprint.type}\n`;
+            summary += `**Description:** ${deterministicResult.blueprint.description}\n\n`;
         }
 
-        if (detectionResult) {
-            summary += `**Project Type:** ${detectionResult.projectType}\n\n`;
-
-            // Detection details
-            if (detectionResult.frontend) {
-                summary += `### Frontend Detected\n`;
-                summary += `- Framework: ${detectionResult.frontend.framework}`;
-                if (detectionResult.frontend.variant) {
-                    summary += ` (${detectionResult.frontend.variant})`;
-                }
-                summary += `\n`;
-                summary += `- Build Output: \`${detectionResult.frontend.outputFolder}\`\n`;
-                summary += `- Package Manager: ${detectionResult.frontend.packageManager}\n`;
-                summary += `\n`;
-            }
-
-            if (detectionResult.backend) {
-                summary += `### Backend Detected\n`;
-                summary += `- Framework: ${detectionResult.backend.framework}\n`;
-                summary += `- Language: ${detectionResult.backend.language}\n`;
-                summary += `\n`;
-            }
-
-            if (detectionResult.databases && detectionResult.databases.length > 0) {
-                summary += `### Databases Detected\n`;
-                for (const db of detectionResult.databases) {
-                    summary += `- ${db.type}\n`;
-                }
-                summary += `\n`;
-            }
-        }
-
-        // Architecture (from AI)
+        // Architecture
         if (architecture) {
             summary += `### Architecture\n`;
             summary += `- **Communication:** ${architecture.containerCommunication}\n`;
@@ -553,7 +186,7 @@ export class DockerGenerationOrchestrator {
             summary += `- ✅ nginx.conf\n`;
         }
 
-        // Assumptions (from AI)
+        // Assumptions
         if (assumptions && assumptions.length > 0) {
             summary += `\n### Assumptions\n`;
             for (const assumption of assumptions) {
@@ -597,9 +230,7 @@ export class DockerGenerationOrchestrator {
             'Dockerfile',
             'docker-compose.yml',
             'nginx.conf',
-            '.dockerignore',
-            'frontend/Dockerfile',
-            'backend/Dockerfile'
+            '.dockerignore'
         ];
 
         for (const file of filesToCheck) {

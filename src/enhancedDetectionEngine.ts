@@ -810,13 +810,40 @@ export class EnhancedDetectionEngine {
         }
 
         // Check for Ruby backend (Rails/Sinatra)
+        // Enhanced detection for Ruby on Rails with multiple signals
         const gemfilePath = path.join(basePath, 'Gemfile');
         if (fs.existsSync(gemfilePath)) {
             const gemfile = fs.readFileSync(gemfilePath, 'utf-8');
             let framework = 'ruby-rails';
+            let isRails = false;
 
-            if (gemfile.includes("gem 'rails'")) framework = 'ruby-rails';
-            else if (gemfile.includes('sinatra')) framework = 'ruby-sinatra';
+            // Multiple Rails detection signals
+            if (gemfile.includes("gem 'rails'") || gemfile.includes('gem "rails"')) {
+                framework = 'ruby-rails';
+                isRails = true;
+            } else if (gemfile.includes('sinatra')) {
+                framework = 'ruby-sinatra';
+            }
+
+            // Additional Rails validation
+            const railsIndicators = [
+                path.join(basePath, 'config', 'application.rb'),
+                path.join(basePath, 'bin', 'rails'),
+                path.join(basePath, 'config', 'routes.rb'),
+                path.join(basePath, 'Rakefile')
+            ];
+
+            const hasRailsStructure = railsIndicators.some(p => fs.existsSync(p));
+            if (hasRailsStructure) {
+                framework = 'ruby-rails';
+                isRails = true;
+            }
+
+            // Detect entry point
+            let entryPoint = 'config.ru';
+            if (fs.existsSync(path.join(basePath, 'config.ru'))) {
+                entryPoint = 'config.ru';
+            }
 
             return {
                 exists: true,
@@ -825,7 +852,9 @@ export class EnhancedDetectionEngine {
                 packageManager: 'bundler',
                 path: relativePath,
                 projectPath: basePath,
-                port: 3000
+                port: 3000,
+                entryPoint,
+                dependencies: isRails ? { rails: true, puma: gemfile.includes('puma') } : {}
             };
         }
 

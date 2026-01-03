@@ -1,0 +1,24 @@
+# MongoDB Database Service Configuration
+# This is a docker-compose service definition for MongoDB
+
+# Usage in docker-compose.yml:
+# mongodb:
+#   image: mongo:7
+#   environment:
+#     MONGO_INITDB_ROOT_USERNAME: ${DB_USER:-admin}
+#     MONGO_INITDB_ROOT_PASSWORD: ${DB_PASSWORD:-password}
+#     MONGO_INITDB_DATABASE: ${DB_NAME:-myapp}
+#   ports:
+#     - "27017:27017"
+#   volumes:
+#     - mongodb_data:/data/db
+#   healthcheck:
+#     test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+#     interval: 10s
+#     timeout: 5s
+#     retries: 5
+#   restart: unless-stopped
+
+# Volume definition:
+# volumes:
+#   mongodb_data:

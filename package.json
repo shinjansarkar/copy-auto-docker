@@ -1,7 +1,7 @@
 {
   "name": "auto-docker-extension",
   "displayName": "Auto Docker Extension",
-  "description": "AI-powered Docker file generator. Analyzes your project and creates optimized Dockerfile, docker-compose.yml, and nginx.conf files instantly!",
+  "description": "Production-ready Docker file generator. Analyzes your project and creates optimized Dockerfile, docker-compose.yml, and nginx.conf files using a deterministic blueprint system.",
   "publisher": "ShinjanSarkar",
   "icon": "images/docker-icon.png",
   "repository": {
@@ -26,13 +26,9 @@
     "docker",
     "dockerfile",
     "docker-compose",
-    "ai",
-    "llm",
     "automation",
     "devops",
     "containerization",
-    "gemini",
-    "openai",
     "production",
     "nginx",
     "monorepo",
@@ -60,16 +56,6 @@
         "command": "autoDocker.analyzeProjectDirect",
         "title": "Generate Docker Files (Direct Mode)",
         "category": "Auto Docker"
-      },
-      {
-        "command": "autoDocker.configureApiKeys",
-        "title": "Configure API Keys",
-        "category": "Auto Docker"
-      },
-      {
-        "command": "autoDocker.generateWithTwoStepAI",
-        "title": "Generate Docker Files (Two-Step AI)",
-        "category": "Auto Docker"
       }
     ],
     "menus": {
@@ -89,42 +75,12 @@
         },
         {
           "command": "autoDocker.analyzeProjectDirect"
-        },
-        {
-          "command": "autoDocker.configureApiKeys"
-        },
-        {
-          "command": "autoDocker.generateWithTwoStepAI"
         }
       ]
     },
     "configuration": {
       "title": "Auto Docker Extension",
       "properties": {
-        "autoDocker.apiProvider": {
-          "type": "string",
-          "enum": [
-            "openai",
-            "gemini"
-          ],
-          "default": "openai",
-          "description": "Select the LLM API provider for Docker file generation"
-        },
-        "autoDocker.openaiApiKey": {
-          "type": "string",
-          "default": "",
-          "description": "OpenAI API key for GPT integration"
-        },
-        "autoDocker.geminiApiKey": {
-          "type": "string",
-          "default": "",
-          "description": "Google Gemini API key for Gemini integration"
-        },
-        "autoDocker.model": {
-          "type": "string",
-          "default": "gpt-4",
-          "description": "Model name to use (e.g., gpt-4, gpt-3.5-turbo, gemini-pro)"
-        },
         "autoDocker.overwriteFiles": {
           "type": "boolean",
           "default": false,
@@ -189,19 +145,13 @@
     "@vscode/vsce": "^3.2.1"
   },
   "dependencies": {
-    "@google/generative-ai": "^0.21.0",
-    "axios": "^1.7.8",
-    "openai": "^4.67.3"
+    "axios": "^1.7.8"
   },
   "extensionDependencies": [],
   "capabilities": {
     "untrustedWorkspaces": {
       "supported": "limited",
-      "description": "This extension requires access to project files for analysis. Some features may be limited in untrusted workspaces.",
-      "restrictedConfigurations": [
-        "autoDocker.openaiApiKey",
-        "autoDocker.geminiApiKey"
-      ]
+      "description": "This extension requires access to project files for analysis. Some features may be limited in untrusted workspaces."
     }
   }
 }

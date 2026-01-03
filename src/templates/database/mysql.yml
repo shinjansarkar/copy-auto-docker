@@ -1,0 +1,25 @@
+# MySQL Database Service Configuration
+# This is a docker-compose service definition for MySQL
+
+# Usage in docker-compose.yml:
+# mysql:
+#   image: mysql:8
+#   environment:
+#     MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-rootpassword}
+#     MYSQL_DATABASE: ${DB_NAME:-myapp}
+#     MYSQL_USER: ${DB_USER:-admin}
+#     MYSQL_PASSWORD: ${DB_PASSWORD:-password}
+#   ports:
+#     - "3306:3306"
+#   volumes:
+#     - mysql_data:/var/lib/mysql
+#   healthcheck:
+#     test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+#     interval: 10s
+#     timeout: 5s
+#     retries: 5
+#   restart: unless-stopped
+
+# Volume definition:
+# volumes:
+#   mysql_data:

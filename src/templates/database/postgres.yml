@@ -1,0 +1,24 @@
+# PostgreSQL Database Service Configuration
+# This is a docker-compose service definition for PostgreSQL
+
+# Usage in docker-compose.yml:
+# postgres:
+#   image: postgres:15-alpine
+#   environment:
+#     POSTGRES_USER: ${DB_USER:-admin}
+#     POSTGRES_PASSWORD: ${DB_PASSWORD:-password}
+#     POSTGRES_DB: ${DB_NAME:-myapp}
+#   ports:
+#     - "5432:5432"
+#   volumes:
+#     - postgres_data:/var/lib/postgresql/data
+#   healthcheck:
+#     test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-admin}"]
+#     interval: 10s
+#     timeout: 5s
+#     retries: 5
+#   restart: unless-stopped
+
+# Volume definition:
+# volumes:
+#   postgres_data:
