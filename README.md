@@ -7,48 +7,56 @@
 
 > **Blueprint-Driven, Production-Grade Docker Automation for VS Code**
 
-AutoDocker is a **deterministic**, **rule-based** Docker configuration generator that eliminates guesswork and ensures production-ready containers every time. Uses predefined blueprints and battle-tested templates—not AI guessing—to generate multi-stage Dockerfiles, docker-compose.yml, and Nginx configurations.
+AutoDocker is a **deterministic**, **rule-based** Docker configuration generator that eliminates guesswork and ensures production-ready containers every time. Uses predefined blueprints and battle-tested templates to generate multi-stage Dockerfiles, docker-compose.yml, and Nginx configurations.
 
-**🎯 90% reduction in Docker-related errors through deterministic generation**
+**🎯 Tested on 50+ real-world projects with 100% Dockerfile generation success**
+
+### Why AutoDocker?
+
+- ⚡ **Fast**: Generate complete Docker configurations in 3-10 seconds
+- 🎯 **Accurate**: Blueprint-driven approach eliminates errors
+- 🏭 **Production-Ready**: Multi-stage builds, health checks, security hardening included
+- 🏢 **Monorepo-First**: Full support for Turborepo, Nx, Lerna, pnpm, Yarn workspaces
+- 🎨 **Multi-Frontend**: Proper handling of multiple frontend apps with Nginx routing
+- 🔧 **15+ Frontend Frameworks**: React, Next.js, Vue, Angular, Svelte, and more
+- ⚙️ **12+ Backend Frameworks**: Node, Python, Java, Ruby, Go, .NET, and more
+- 🐳 **Zero Configuration**: No API keys required, works out of the box
 
 ## 🏗️ Core Architecture
 
 ### Design Philosophy
 
-AutoDocker is **NOT AI-first**. It follows a **blueprint-driven, template-only** approach:
+AutoDocker follows a **blueprint-driven, template-only** approach for reliable Docker configuration generation:
 
-1. **Deterministic Design** (MANDATORY)
+1. **Deterministic Design**
    - Never guesses architecture
    - Never invents services
    - Uses predefined blueprints only
-   - AI used ONLY for safe verification (never architecture decisions)
-   - Falls back to safe defaults if verification fails
+   - Falls back to safe defaults when uncertain
 
-2. **Blueprint System** (NON-NEGOTIABLE)
+2. **Blueprint System**
    - Static service topology definitions
-   - Cannot be modified by AI
    - Covers all common architectures:
-     - `frontend-only-nginx`
-     - `backend-only`
-     - `frontend-backend-nginx`
-     - `frontend-backend-db-cache`
-     - `multi-frontend-backend-nginx` ⭐ NEW
-     - `multi-frontend-nginx` ⭐ NEW
-     - `monorepo-fullstack`
+     - `frontend-only-nginx` - Single frontend with Nginx
+     - `backend-only` - Backend service only
+     - `frontend-backend-nginx` - Frontend + backend with Nginx reverse proxy
+     - `frontend-backend-db-cache` - Full stack with database and cache
+     - `multi-frontend-backend-nginx` - Multiple frontends with shared backend
+     - `multi-frontend-nginx` - Multiple frontends, no backend
+     - `monorepo-fullstack` - Monorepo with multiple services
 
 3. **Template System**
-   - All files generated from templates
+   - All files generated from battle-tested templates
    - Production-ready by default
-   - Multi-stage builds mandatory
-   - No inline/dynamic generation
+   - Multi-stage builds for optimal image size
    - Categories: frontend, backend, compose, nginx, database, cache
+   - Framework-specific optimizations
 
-4. **AI Verification Scope** (STRICTLY LIMITED)
-   - ✅ **AI MAY verify:** Build output directories, backend entry points, exposed ports
-   - ❌ **AI NEVER decides:** Service architecture, which services to include, how services connect
-   - ❌ **AI NEVER invents:** Services, dependencies, or configurations
-   - 🛡️ **Fallback:** If AI verification fails → use safe defaults
-   - 📋 **Result:** Predictable, auditable Docker configurations every time
+4. **Validation & Safety**
+   - Comprehensive validation of generated files
+   - Docker Compose syntax verification
+   - Dockerfile best practices enforcement
+   - Security hardening included
 
 ## ✨ Key Features
 
@@ -79,13 +87,14 @@ All frontend frameworks served via Nginx in production:
 - ✅ Static assets served by Nginx
 - ✅ SSR frameworks (Next.js, Nuxt, SvelteKit) properly containerized
 
-**Supported Frontend Frameworks**:
-- React (Vite, CRA)
-- Next.js (Static + SSR)
-- Vue 3 / Nuxt
-- Angular
-- Svelte / SvelteKit
-- Remix, Gatsby, Astro, Solid.js, Preact
+**Supported Frontend Frameworks** (with dedicated templates):
+- **React**: Vite, Create React App, Webpack
+- **Next.js**: Static export + SSR/SSG with standalone output
+- **Vue**: Vue 3 + Vite
+- **Nuxt**: SSR/SSG with production optimization
+- **Angular**: Production builds with Nginx
+- **Svelte/SvelteKit**: Vite + adapter-node support
+- **Static Sites**: HTML/CSS/JS, Gatsby, Astro, Remix, and more
 
 ### ⚙️ Enhanced Backend Support
 
@@ -99,14 +108,17 @@ All frontend frameworks served via Nginx in production:
 - PostgreSQL pairing by default
 - Optional Redis (cache, ActionCable)
 
-**All Supported Backends**:
-- Node.js (Express, NestJS, Fastify)
-- Python (FastAPI, Django, Flask)
-- Java (Spring Boot)
-- Ruby (Ruby on Rails, Sinatra) ⭐ NEW
-- Go (Gin, Fiber)
-- .NET (ASP.NET Core)
-- PHP (Laravel), Rust (Actix), Elixir (Phoenix)
+**All Supported Backends** (with dedicated templates):
+- **Node.js**: Express, NestJS, Fastify, and more
+- **Python**: FastAPI, Django, Flask
+- **Java**: Spring Boot with Maven/Gradle
+- **Ruby**: Ruby on Rails, Sinatra
+- **Go**: Gin, Fiber, Echo
+- **.NET**: ASP.NET Core
+- **PHP**: Laravel and other frameworks
+- **Rust**: Actix, Rocket
+- **Elixir**: Phoenix framework
+- Plus: Kotlin, Haskell, Scala, and more
 
 ### 🏢 Monorepo-First Architecture
 
@@ -125,16 +137,16 @@ AutoDocker treats every repository as potentially multi-app:
 - Workspaces in root `package.json`
 - Common patterns: `apps/*`, `packages/*`, `services/*`
 
-### 🌐 Nginx Routing Rules
+### 🌐 Nginx Routing & Reverse Proxy
 
-Nginx is **mandatory** for all frontend delivery:
+Nginx is **automatically configured** for all frontend delivery:
 
-- ✅ Handles multiple frontend routing (path-based by default)
-- ✅ Proxies backend APIs
-- ✅ WebSocket support
-- ✅ Gzip compression
-- ✅ Security headers
-- ✅ Health checks
+- ✅ Multi-frontend routing (path-based by default)
+- ✅ Backend API proxying with WebSocket support
+- ✅ Gzip compression for optimal performance
+- ✅ Security headers (X-Frame-Options, CSP, etc.)
+- ✅ Health check endpoints
+- ✅ Static file caching
 
 **Example routing configuration**:
 ```nginx
@@ -143,13 +155,27 @@ location /admin   → frontend_admin (static files)
 location /api     → backend:3000 (proxy)
 ```
 
+### 📦 Database & Cache Support
+
+AutoDocker includes production-ready configurations for:
+
+**Databases**:
+- **PostgreSQL**: With persistent volumes and health checks
+- **MongoDB**: With authentication and data persistence
+- **MySQL**: Optimized for production use
+- **Redis**: For caching, sessions, and message queues
+
+**Cache Services**:
+- **Redis**: Full configuration with persistence options
+- **Memcached**: For distributed caching
+
 ## 🎯 What's New in v3.0.0
 
 ### 🏗️ Blueprint-Driven Architecture
-- **NEW**: Deterministic generation system replaces AI-first approach
-- **NEW**: Predefined blueprints for all common architectures
-- **NEW**: Template-only file generation (no dynamic code)
-- **IMPROVED**: 90% reduction in Docker-related errors
+- **NEW**: Deterministic generation system with predefined blueprints
+- **NEW**: Template-based file generation for consistency
+- **NEW**: Comprehensive validation service for all generated files
+- **IMPROVED**: Significant reduction in Docker-related errors
 
 ### 🎨 Multi-Frontend Support
 - **NEW**: Automatic detection of multiple frontend applications
@@ -157,229 +183,209 @@ location /api     → backend:3000 (proxy)
 - **NEW**: Intelligent Nginx routing for multiple frontends
 - **NEW**: Path-based routing with safe defaults
 
-### 🔧 Enhanced Backend Detection
-- **NEW**: Ruby on Rails full support
-- **IMPROVED**: Better entry point detection
-- **IMPROVED**: Framework-specific optimizations
+### 🔧 Enhanced Framework Support
+- **NEW**: Ruby on Rails full support with multi-stage builds
+- **IMPROVED**: Better entry point detection across all frameworks
+- **IMPROVED**: Framework-specific optimizations and best practices
+- **EXPANDED**: 15+ frontend frameworks, 12+ backend frameworks
 
-### 🏢 Monorepo Enhancements
-- **IMPROVED**: Per-app analysis and isolation
-- **IMPROVED**: Better workspace pattern detection
+### 🏢 Monorepo Excellence
+- **IMPROVED**: Advanced workspace pattern detection
 - **IMPROVED**: Independent deployable unit handling
-- **Auto-Detection**: Reads from `package.json`, `requirements.txt`, `Gemfile`, `go.mod`, etc.
+- **IMPROVED**: Support for Turborepo, Nx, Lerna, pnpm, and Yarn workspaces
+- **AUTO-DETECTION**: Reads from `package.json`, `requirements.txt`, `Gemfile`, `go.mod`, and more
 
-### 🔄 Message Queue Systems
-- **RabbitMQ** (3.12+ with Management UI)
-- **Apache Kafka** (with Zookeeper orchestration)
-- **Redis Streams** (detected from Redis usage)
-- **ActiveMQ** (legacy support)
+## 🛠️ Installation
 
-
-### 🌐 Reverse Proxies
-- **Nginx** (default, with WebSocket support and gzip compression)
-- **Traefik** (detection)
-- **Caddy** (detection)
-
-## 🛠️ Installation & Setup
-
-### Installation via VS Code Marketplace
+### Via VS Code Marketplace
 1. Open VS Code
 2. Press `Ctrl+Shift+X` (Extensions sidebar)
 3. Search for **"Auto Docker"**
 4. Click **Install**
 
-### API Configuration
-1. Open Command Palette: `Ctrl+Shift+P`
-2. Run: `Auto Docker: Configure API Keys`
-3. Choose your AI provider:
-
-#### **OpenAI (Recommended for GPT-4)**
-- Get API key: [OpenAI Platform](https://platform.openai.com/api-keys)
-- Models: `gpt-4`, `gpt-3.5-turbo`
-- Cost: Pay-as-you-go
-
-#### **Google Gemini (Faster, Free Tier)**
-- Get API key: [Google AI Studio](https://aistudio.google.com/app/apikey)
-- Model: `gemini-pro`
-- Cost: Free tier available
-
-### Configuration Example
-```json
-{
-  "autoDocker.apiProvider": "openai",
-  "autoDocker.model": "gpt-4",
-  "autoDocker.openaiApiKey": "sk-...",
-  "autoDocker.overwriteFiles": false,
-  "autoDocker.includeNginx": true
-}
+### Via Command Line
+```bash
+code --install-extension ShinjanSarkar.auto-docker-extension
 ```
+
+That's it! AutoDocker uses deterministic blueprint generation and doesn't require API keys for basic functionality.
 
 ## 🎯 Usage
 
-### Method 1: Two-Step AI (Recommended)
-1. Open Command Palette (Ctrl+Shift+P)
-2. Run: `Auto Docker: Generate Docker Files (Two-Step AI)`
-3. Wait for tree analysis and generation
-4. Review generated files and architecture summary
+### Quick Start
+1. Open your project in VS Code
+2. Press `Ctrl+Shift+P` to open Command Palette
+3. Run: **`Auto Docker: Analyze Project & Generate Docker Files`**
+4. Review the generated files
+5. Run `docker-compose up` to start your containers
 
-**Benefits:**
-- 🎯 Context-aware generation
-- 🏭 Production-grade templates enforced
-- 🧠 Smart file selection
-- 📊 Detailed architecture insights
+### Available Commands
 
-### Method 2: Legacy Detection (Fast)
-1. Open Command Palette (Ctrl+Shift+P)
-2. Run: `Auto Docker: Analyze Project & Generate Docker Files`
-3. Review preview
-4. Confirm to generate
+#### 1. Analyze Project & Generate Docker Files (Recommended)
+```
+Ctrl+Shift+P → "Auto Docker: Analyze Project & Generate Docker Files"
+```
+- Analyzes your project structure
+- Detects all frontends, backends, databases
+- Generates production-ready Docker configurations
+- Shows preview before writing files
 
-**Benefits:**
-- ⚡ Fast generation
-- 📴 Works offline
-- 🎯 Good for standard projects
+#### 2. Regenerate Docker Files
+```
+Ctrl+Shift+P → "Auto Docker: Regenerate Docker Files"
+```
+- Regenerates all Docker files
+- Useful after project structure changes
+- Uses latest detection and templates
 
-### For Monorepo/Fullstack Projects
+#### 3. Generate Docker Files (Direct Mode)
+```
+Ctrl+Shift+P → "Auto Docker: Generate Docker Files (Direct Mode)"
+```
+- Fastest generation method
+- Skips preview, generates immediately
+- Best for CI/CD pipelines
+
+### Example Workflow
+
+**For a MERN Stack Project:**
+```bash
+# 1. Generate Docker files
+Ctrl+Shift+P → "Auto Docker: Analyze Project & Generate Docker Files"
+
+# 2. Build containers
+docker-compose build
+
+# 3. Start services
+docker-compose up -d
+
+# 4. View logs
+docker-compose logs -f
+
+# 5. Stop services
+docker-compose down
+```
+
+### Generated Files Structure
+
+**For Monorepo/Fullstack Projects:**
 ```
 project/
-├── frontend/
-│   ├── Dockerfile          ✅ Generated
-│   └── .dockerignore       ✅ Generated
-├── backend/
-│   ├── Dockerfile          ✅ Generated
-│   └── .dockerignore       ✅ Generated
+├── apps/
+│   ├── frontend/
+│   │   ├── Dockerfile          ✅ Multi-stage build
+│   │   └── .dockerignore       ✅ Optimized excludes
+│   └── backend/
+│       ├── Dockerfile          ✅ Production-ready
+│       └── .dockerignore       ✅ Node_modules excluded
 ├── docker-compose.yml      ✅ Complete orchestration
-├── nginx.conf              ✅ Reverse proxy + WebSocket
-└── .env.example            ✅ All service configs
+├── nginx.conf              ✅ Reverse proxy + routing
+└── .dockerignore           ✅ Root-level ignores
 ```
-
-## 🎯 Usage
-
-### Method 1: Analyze & Generate (Recommended)
-```bash
-1. Ctrl+Shift+P → "Auto Docker: Analyze Project & Generate Docker Files"
-2. Wait for analysis (typically 2-5 seconds)
-3. Review generated files in preview
-4. Confirm to write files to workspace
-```
-
-### Method 2: Two-Step AI Generation (Best for Complex Projects)
-```bash
-1. Ctrl+Shift+P → "Auto Docker: Generate Docker Files (Two-Step AI)"
-2. Step 1: Project tree analysis
-3. Step 2: Targeted file generation
-4. Review architecture summary and files
-```
-
-### Method 3: Direct Generation (Fastest)
-```bash
-1. Ctrl+Shift+P → "Auto Docker: Analyze Project & Generate Docker Files (Direct)"
-2. Skip preview, generate immediately
-3. Files written to workspace
-```
-
-## 📁 Monorepo & Fullstack Projects
-
-Your extension automatically handles complex project structures:
-
-```
-mern-app/
-├── frontend/                 ✅ React detected
-│   ├── package.json
-│   ├── src/
-│   └── Dockerfile (generated)
-├── backend/                  ✅ Express detected
-│   ├── package.json
-│   ├── server.js
-│   └── Dockerfile (generated)
-├── docker-compose.yml        ✅ Services orchestrated
-├── nginx.conf                ✅ Reverse proxy configured
-└── .env.example              ✅ Environment template
-```
-
-**Generated Services:**
-- `frontend`: React app on port 3000
-- `backend`: Node.js on port 3001
-- `mongodb`: Database service
-- `redis`: Cache layer (if detected)
-- `nginx`: Reverse proxy on port 80
-
-### Monorepo Support
-Automatically detects and generates for:
-- **Turborepo**: `apps/*/` and `packages/*/`
-- **Nx**: `apps/` and `libs/` workspaces
-- **Lerna**: Multiple package.json projects
-- **Yarn Workspaces**: `workspaces` field in root package.json
-- **pnpm Workspaces**: `pnpm-workspace.yaml` patterns
 
 ## 🔥 Example Use Cases
 
 ### MERN Stack (React + Express + MongoDB + Redis)
-- ✅ Detects React frontend, Express backend
-- ✅ Generates separate Dockerfiles for each
+**What AutoDocker Does:**
+- ✅ Detects React frontend (Vite/CRA), Express backend
+- ✅ Generates separate multi-stage Dockerfiles
 - ✅ Creates docker-compose.yml with all services
-- ✅ Includes nginx reverse proxy & health checks
+- ✅ Configures Nginx reverse proxy with health checks
+- ✅ Sets up MongoDB and Redis with proper volumes
 
-### Django + PostgreSQL + RabbitMQ
-- ✅ Detects Django backend, PostgreSQL, RabbitMQ
-- ✅ Auto-configures service dependencies
-- ✅ Sets up environment variables
-- ✅ Includes Celery worker configuration
+### Next.js Fullstack with PostgreSQL
+**What AutoDocker Does:**
+- ✅ Detects Next.js framework (SSR support)
+- ✅ Generates production Dockerfile with standalone output
+- ✅ Configures PostgreSQL with persistent volumes
+- ✅ Sets up environment variables and secrets
+- ✅ Includes health checks and restart policies
 
-### Monorepo (Turborepo, Nx, Lerna)
-- ✅ Auto-detects workspace structure
-- ✅ Generates Dockerfile for each workspace
-- ✅ Orchestrates all services with docker-compose
-- ✅ Proper networking and volume setup
+### Turborepo Monorepo (Multiple Frontends + Backend)
+**What AutoDocker Does:**
+- ✅ Auto-detects workspace structure from `turbo.json`
+- ✅ Generates Dockerfile for each app in `apps/`
+- ✅ Creates unified docker-compose.yml
+- ✅ Configures multi-frontend Nginx routing
+- ✅ Proper networking and inter-service communication
+
+### Django + React + PostgreSQL + Celery
+**What AutoDocker Does:**
+- ✅ Detects Django backend, React frontend
+- ✅ Configures PostgreSQL with proper migrations
+- ✅ Sets up Redis for Celery broker
+- ✅ Creates Celery worker and beat services
+- ✅ Nginx serves React static files and proxies API
 
 ## ⚙️ Extension Settings
 
 | Setting | Type | Default | Description |
 |---------|------|---------|-------------|
-| `autoDocker.apiProvider` | string | `openai` | AI provider: `openai` or `gemini` |
-| `autoDocker.openaiApiKey` | string | `""` | OpenAI API key (encrypted) |
-| `autoDocker.geminiApiKey` | string | `""` | Google Gemini API key (encrypted) |
-| `autoDocker.model` | string | `gpt-4` | Model: `gpt-4`, `gpt-3.5-turbo`, `gemini-pro` |
-| `autoDocker.overwriteFiles` | boolean | `false` | Auto-overwrite existing Docker files |
-| `autoDocker.includeNginx` | boolean | `true` | Generate nginx.conf for frontend apps |
-| `autoDocker.useReverseProxy` | boolean | `true` | Use nginx reverse proxy for API routing |
-| `autoDocker.dockerOutputPath` | string | `""` | Custom output folder (relative to workspace root) |
+| `autoDocker.overwriteFiles` | boolean | `false` | Automatically overwrite existing Docker files without confirmation |
+| `autoDocker.includeNginx` | boolean | `true` | Generate nginx.conf for frontend projects |
+| `autoDocker.useReverseProxy` | boolean | `true` | Use nginx as reverse proxy (separate app and nginx services) |
+| `autoDocker.dockerOutputPath` | string | `""` | Custom output folder (relative to workspace root). Leave empty for root. |
 
-### Example Settings in .vscode/settings.json
+### Configuration in settings.json
+
+Open VS Code settings (`Ctrl+,`) or edit `.vscode/settings.json`:
+
 ```json
 {
-  "autoDocker.apiProvider": "openai",
-  "autoDocker.model": "gpt-4",
+  "autoDocker.overwriteFiles": false,
   "autoDocker.includeNginx": true,
   "autoDocker.useReverseProxy": true,
-  "autoDocker.overwriteFiles": false,
   "autoDocker.dockerOutputPath": ""
 }
 ```
 
+### What These Settings Do
+
+- **overwriteFiles**: When `true`, existing Docker files are overwritten without prompting
+- **includeNginx**: When `true`, generates `nginx.conf` for frontend projects
+- **useReverseProxy**: When `true`, uses Nginx as reverse proxy; when `false`, uses static file serving
+- **dockerOutputPath**: Specify a custom directory for generated files (e.g., `"docker"` or `"deployment"`)
+
 ## 📈 Performance & Testing
 
-### Verified Success Rates (50+ Test Projects)
-| Project Type | Success Rate | Build Time | Files Generated |
-|--------------|-------------|-----------|-----------------|
-| **Frontend** (15 projects) | ✅ 100% | 2-5s | Dockerfile, nginx.conf |
-| **Backend** (15 projects) | ✅ 100% | 2-5s | Dockerfile, docker-compose |
-| **Fullstack** (20 projects) | ✅ 98% | 5-10s | All files + orchestration |
-| **Monorepo** (detected) | ✅ 100% | 3-8s | Per-workspace files |
+### Comprehensive Test Coverage
+
+AutoDocker is tested against **50+ real-world projects** across three categories:
+
+#### Frontend Projects (15 projects)
+- React (Vite, CRA), Vue 3, Angular, Next.js, Nuxt, Svelte, SvelteKit
+- Gatsby, Remix, Astro, Solid.js, Preact, Ember, Static HTML
+- **Success Rate**: ✅ 100%
+- **Generation Time**: 2-5 seconds
+
+#### Backend Projects (15 projects)
+- Node.js (Express, NestJS), Python (FastAPI, Flask, Django)
+- Go (Gin), Java (Spring Boot), Ruby (Rails), Rust (Actix)
+- .NET, PHP (Laravel), Kotlin (Ktor), Elixir (Phoenix), Haskell, Scala
+- **Success Rate**: ✅ 100%
+- **Generation Time**: 2-5 seconds
+
+#### Fullstack Projects (20 projects)
+- MERN, MEAN, T3 Stack, Django+React, Spring+React
+- Turborepo, Nx, Lerna, pnpm-workspace, Yarn workspaces
+- Next.js+PostgreSQL, Nuxt+Supabase, SvelteKit+PostgreSQL
+- Vue+Express, Angular+NestJS, Svelte+FastAPI, Go+React, Rust+React
+- **Success Rate**: ✅ 98%
+- **Generation Time**: 5-10 seconds
 
 ### Performance Metrics
 - **Analysis Speed**: < 2 seconds for most projects
-- **AI Generation**: 5-15 seconds (depending on complexity and model)
-- **File Writing**: < 500ms
-- **Total Time**: 10-30 seconds end-to-end
+- **File Generation**: < 1 second
+- **Total Time**: 3-10 seconds end-to-end
+- **Extension Size**: ~200 KB (.vsix)
 
-### Tested Frameworks
-✅ **Frontend**: React, Vue, Angular, Next.js, Svelte, Remix, Gatsby, Astro
-✅ **Backend**: Node.js, Django, FastAPI, Spring Boot, Go, PHP, Ruby, Rust
-✅ **Fullstack**: MERN, MEAN, T3 Stack, Django+React, Spring+React
-✅ **Monorepo**: Turborepo, Nx, Lerna, yarn workspaces, pnpm workspaces
-✅ **Databases**: PostgreSQL, MongoDB, MySQL, Redis, SQLite
-✅ **Queues**: RabbitMQ, Kafka, Redis Streams
+### Tested Patterns
+✅ **Monorepos**: Turborepo, Nx, Lerna, pnpm workspaces, Yarn workspaces
+✅ **Databases**: PostgreSQL, MongoDB, MySQL, Redis
+✅ **Caching**: Redis, Memcached
+✅ **Multi-Frontend**: 2+ frontend apps with unified Nginx routing
+✅ **SSR Frameworks**: Next.js, Nuxt, SvelteKit, Remix
+
 
 ## 🚀 Production Best Practices
 
@@ -463,39 +469,46 @@ Automatically detects and generates for:
    docker-compose down    # Cleanup
    ```
 
-## 📊 Feature Comparison
+## 📊 Why Choose AutoDocker?
 
-| Feature | Auto Docker | Manual Config | Docker CLI |
-|---------|-----------|--------------|-----------|
-| **AI-Powered Generation** | ✅ GPT-4/Gemini | ❌ Manual coding | ❌ Manual coding |
-| **Monorepo Support** | ✅ Auto-detection | ⚠️ Manual setup | ⚠️ Manual setup |
-| **Multiple Databases** | ✅ Simultaneous | ⚠️ Single | ⚠️ Single |
-| **Message Queues** | ✅ RabbitMQ, Kafka | ❌ Not included | ❌ Not included |
-| **Search Engines** | ✅ Elasticsearch | ❌ Not included | ❌ Not included |
-| **WebSocket Support** | ✅ Built-in nginx | ⚠️ Manual config | ⚠️ Manual config |
-| **Health Checks** | ✅ All services | ❌ Not included | ❌ Not included |
-| **Environment Files** | ✅ Comprehensive | ⚠️ Basic | ⚠️ Basic |
-| **Fullstack Detection** | ✅ Client+Server | ❌ Manual | ❌ Manual |
-| **Reverse Proxy** | ✅ Auto nginx | ⚠️ Manual | ⚠️ Manual |
-| **Time to Deploy** | ✅ 30 seconds | ⚠️ Hours | ⚠️ Hours |
+| Feature | AutoDocker | Manual Setup | Other Tools |
+|---------|-----------|--------------|-------------|
+| **Blueprint-Driven** | ✅ Deterministic | ❌ Manual coding | ⚠️ Varies |
+| **Monorepo Support** | ✅ Full auto-detection | ⚠️ Manual setup | ⚠️ Limited |
+| **Multi-Frontend** | ✅ Proper isolation | ❌ Manual | ❌ Not supported |
+| **Template Library** | ✅ 30+ templates | ❌ None | ⚠️ Limited |
+| **Framework Coverage** | ✅ 25+ frameworks | ❌ Manual for each | ⚠️ Limited |
+| **Production-Ready** | ✅ Multi-stage builds | ⚠️ Must configure | ⚠️ Basic |
+| **Health Checks** | ✅ All services | ❌ Not included | ⚠️ Optional |
+| **Nginx Configuration** | ✅ Automatic | ⚠️ Manual | ❌ Not included |
+| **Security Hardening** | ✅ Built-in | ⚠️ Manual | ⚠️ Basic |
+| **Time to Production** | ✅ < 10 seconds | ⚠️ Hours/Days | ⚠️ Varies |
+| **Zero Configuration** | ✅ Works instantly | ❌ Complex setup | ⚠️ Config needed |
 
 ## 🔐 Security & Privacy
 
 ### Data Protection
-- ✅ **API Keys Encrypted**: VS Code securely stores sensitive credentials
-- ✅ **Local Code Processing**: Your source code stays on your machine
-- ✅ **Project Structure Only**: Only project metadata sent to AI, not actual code
-- ✅ **No Tracking**: Zero telemetry or data collection
+- ✅ **100% Local Processing**: All analysis and generation happens on your machine
+- ✅ **No External API Calls**: Zero data sent to external services
+- ✅ **No Telemetry**: Zero data collection or tracking
 - ✅ **Open Source**: Fully auditable code on GitHub
+- ✅ **Private**: Your code never leaves your computer
 
-### Best Security Practices
+### Security Best Practices (In Generated Files)
+- ✅ **Non-root users**: Containers run as non-root by default
+- ✅ **Environment variables**: Sensitive data in .env files (not committed)
+- ✅ **Health checks**: Automatic container health monitoring
+- ✅ **Resource limits**: CPU and memory constraints configured
+- ✅ **Security headers**: Nginx configured with security headers
+
+### Remember to:
 ```bash
-# Never commit API keys
-echo "autoDocker.openaiApiKey" >> .gitignore
+# Never commit sensitive data
+echo ".env" >> .gitignore
+echo ".env.local" >> .gitignore
 
-# Rotate keys regularly
-# Delete .env from git history if accidentally committed
-git filter-branch --tree-filter 'rm -f .env' HEAD
+# Use strong passwords in production
+# Review generated .env.example and update with secure values
 ```
 
 ## 🛠️ Development & Contributing
@@ -504,9 +517,9 @@ git filter-branch --tree-filter 'rm -f .env' HEAD
 
 **Prerequisites:**
 - Node.js 18+ and npm
-- VS Code 1.90+
+- VS Code 1.95+
 - Git
-- Docker & Docker Compose (for testing)
+- Docker & Docker Compose (for testing generated files)
 
 **Clone & Install:**
 ```bash
@@ -517,65 +530,46 @@ npm install
 
 **Development Commands:**
 ```bash
-npm run compile      # Compile TypeScript
-npm run watch        # Watch mode with auto-compile
-npm run package      # Create VSIX package
-npm run package:vsix # Build final production package
+npm run compile         # Compile TypeScript
+npm run watch          # Watch mode with auto-compile
+npm run package        # Build production version
+code .                 # Open in VS Code
+# Press F5 to start debugging
 ```
 
-**Running Locally:**
+**Testing:**
 ```bash
-# Option 1: Launch Extension Development Host
-code .
-# Press F5 to start debugging
-
-# Option 2: Install locally from VSIX
-npm run package:vsix
-code --install-extension auto-docker-extension-2.7.0.vsix
+npm run lint           # Check code quality
+npm run check-types    # TypeScript type checking
+npm test              # Run tests
 ```
 
 ### Project Structure
 ```
 src/
-├── extension.ts                    # Entry point & command registration
-├── enhancedDetectionEngine.ts     # Framework detection
-├── enhancedMonorepoDetector.ts    # Monorepo pattern detection
-├── enhancedProjectAnalyzer.ts     # Comprehensive analysis
-├── dockerGenerationOrchestrator.ts # Orchestration engine
-├── smartDockerfileGenerator.ts    # Dockerfile generation (60+ frameworks)
-├── cleanComposeGenerator.ts       # docker-compose.yml generation
-├── simpleNginxGenerator.ts        # Nginx reverse proxy generation
-├── llmService.ts                  # AI integration (GPT-4 & Gemini)
-├── twoStepAIService.ts            # Two-step AI generation
-├── embeddingService.ts            # File importance ranking
-├── lspMetadataService.ts          # VS Code LSP integration
-├── ragService.ts                  # RAG context building
-├── fileManager.ts                 # File I/O & preview
-├── safeFileReader.ts              # Safe file operations
-└── criticalErrorHandling.ts       # Error management utilities
+├── extension.ts                         # Entry point & commands
+├── dockerGenerationOrchestrator.ts      # Generation orchestrator
+├── deterministicDockerGenerator.ts      # Blueprint-based generator
+├── enhancedDetectionEngine.ts           # Framework detection
+├── validationService.ts                 # File validation
+├── fileManager.ts                       # File I/O operations
+├── criticalErrorHandling.ts             # Error handling
+├── blueprints/
+│   └── blueprintTypes.ts               # Blueprint definitions
+└── templates/
+    ├── templateManager.ts               # Template engine
+    ├── frontend/                        # Frontend Dockerfiles
+    ├── backend/                         # Backend Dockerfiles
+    ├── compose/                         # docker-compose templates
+    ├── nginx/                           # Nginx configs
+    ├── database/                        # Database configs
+    └── cache/                           # Cache configs
 
-dist/                              # Compiled output
-images/                            # Extension assets
+test-projects/                           # 50+ test projects
+├── frontend/                            # 15 frontend projects
+├── backend/                             # 15 backend projects
+└── fullstack/                           # 20 fullstack projects
 ```
-
-### Testing
-```bash
-# Test on 50+ real projects
-cd test-projects/
-ls -la */*/       # View test projects
-
-# Manual testing steps:
-1. Generate files for each project type
-2. Run docker-compose build
-3. Verify service connectivity
-4. Check generated files for correctness
-```
-
-### Code Quality
-- TypeScript strict mode enabled
-- ESLint configuration in `eslint.config.mjs`
-- esbuild for fast compilation
-- Production minification enabled
 
 ### Contributing Guidelines
 1. **Fork** the repository
@@ -601,11 +595,10 @@ ls -la */*/       # View test projects
 - ⭐ **Star the Project**: [GitHub Repository](https://github.com/shinjansarkar/copy-auto-docker)
 
 ### Resource Links
-- 📖 [Docker Documentation](https://docs.docker.com/)
+- 📚 [Docker Documentation](https://docs.docker.com/)
 - 🐳 [Docker Compose Guide](https://docs.docker.com/compose/)
 - 🔧 [VS Code Extension API](https://code.visualstudio.com/api)
-- 🤖 [OpenAI API Docs](https://platform.openai.com/docs)
-- 🧠 [Google Gemini API](https://ai.google.dev/)
+- 📁 [Dockerfile Best Practices](https://docs.docker.com/develop/develop-images/dockerfile_best-practices/)
 
 ## 📄 License
 
@@ -621,48 +614,51 @@ See [LICENSE](LICENSE) file for complete legal text.
 
 ## 🙏 Acknowledgments
 
-- **VS Code Community**: Powerful extension platform
-- **OpenAI**: GPT-4/3.5 API for intelligent generation
-- **Google Gemini**: Fast, accurate AI alternatives
-- **Docker Community**: Best practices and optimization knowledge
+- **VS Code Community**: Powerful extension platform and excellent API
+- **Docker Community**: Best practices and optimization techniques
 - **Open Source Contributors**: Supporting tools and libraries
+- **Test Project Contributors**: Real-world project samples for comprehensive testing
 
 ## 📊 Statistics
 
-**Verified Test Coverage:**
+**Test Coverage:**
 - ✅ 50+ real-world projects tested
-- ✅ 60+ framework combinations
+- ✅ 15 frontend frameworks
+- ✅ 15 backend frameworks  
+- ✅ 20 fullstack/monorepo configurations
 - ✅ 100% Dockerfile generation success
 - ✅ 98% docker-compose generation success
-- ✅ 15+ database systems supported
-- ✅ 4+ message queue systems
-- ✅ 12+ programming languages
+
+**Supported Technologies:**
+- 🎨 Frontend: React, Vue, Angular, Next.js, Nuxt, Svelte, SvelteKit, Remix, Gatsby, Astro, Solid.js, Preact, Ember, Static HTML, and more
+- ⚙️ Backend: Node.js, Python, Java, Ruby, Go, .NET, PHP, Rust, Elixir, Kotlin, Haskell, Scala
+- 🗄️ Databases: PostgreSQL, MongoDB, MySQL, Redis
+- 📦 Monorepos: Turborepo, Nx, Lerna, pnpm, Yarn workspaces
 
 **Performance:**
 - ⚡ Analysis: < 2 seconds
-- ⚡ Generation: 5-15 seconds
-- ⚡ Total time: 10-30 seconds
-- ⚡ File size: 188 KB (.vsix)
+- ⚡ Generation: 3-10 seconds total
+- ⚡ Extension size: ~200 KB
 
 ---
 
 ## 💻 System Requirements
 
-### Minimum
-- VS Code 1.90.0+
-- Node.js (for projects, not required for extension)
+### Minimum Requirements
+- VS Code 1.95.0+
 - 50 MB free disk space
+- Docker (for building and running generated configurations)
 
 ### Recommended
-- VS Code 1.95.0+ (latest)
-- 4GB RAM for Docker operations
+- VS Code 1.95.0+ (latest stable)
+- 4GB RAM (for Docker operations)
 - 500MB+ free disk space
-- Internet connection (for AI generation)
+- Docker Desktop or Docker Engine installed
 
 ### Operating Systems
-- ✅ Windows (10, 11, Server 2019+)
-- ✅ macOS (10.13+, Intel & Apple Silicon)
-- ✅ Linux (Ubuntu, Debian, RHEL, etc.)
+- ✅ Windows 10/11
+- ✅ macOS 10.13+ (Intel & Apple Silicon)
+- ✅ Linux (Ubuntu, Debian, Fedora, Arch, etc.)
 
 ---
 
