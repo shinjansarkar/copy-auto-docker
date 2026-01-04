@@ -9,6 +9,7 @@ export interface GeneratedDockerFiles {
     dockerCompose: string;
     dockerIgnore: string;
     nginxConf?: string;
+    nginxDockerfile?: string;
     frontendDockerfiles?: Array<{ path: string; content: string }>;
     backendDockerfiles?: Array<{ path: string; content: string }>;
 }
@@ -91,6 +92,10 @@ export class DockerGenerationOrchestrator {
 
             if (result.files.nginxConf) {
                 files.nginxConf = result.files.nginxConf;
+            }
+
+            if (result.files.nginxDockerfile) {
+                files.nginxDockerfile = result.files.nginxDockerfile;
             }
 
             // Log architecture

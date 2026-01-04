@@ -212,6 +212,13 @@ async function writeGeneratedFiles(workspaceRoot: string, files: any): Promise<v
         outputChannel.appendLine('✅ Written: nginx.conf');
     }
 
+    // Write Dockerfile.nginx if present
+    if (files.nginxDockerfile) {
+        const nginxDockerfilePath = path.join(workspaceRoot, 'Dockerfile.nginx');
+        fs.writeFileSync(nginxDockerfilePath, files.nginxDockerfile, 'utf-8');
+        outputChannel.appendLine('✅ Written: Dockerfile.nginx');
+    }
+
     // Write .dockerignore
     if (files.dockerignore) {
         const dockerignorePath = path.join(workspaceRoot, '.dockerignore');

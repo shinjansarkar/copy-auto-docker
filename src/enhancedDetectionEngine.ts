@@ -305,29 +305,29 @@ export class EnhancedDetectionEngine {
 
         // First, try to read workspaces from package.json
         const packageJsonPath = path.join(this.basePath, 'package.json');
-        
+
         if (fs.existsSync(packageJsonPath)) {
             try {
                 const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf-8'));
-                
+
                 // Check for workspaces field (yarn/npm workspaces)
                 if (packageJson.workspaces) {
                     let workspacePatterns: string[] = [];
-                    
+
                     // workspaces can be array or object with "packages" field
                     if (Array.isArray(packageJson.workspaces)) {
                         workspacePatterns = packageJson.workspaces;
                     } else if (packageJson.workspaces.packages) {
                         workspacePatterns = packageJson.workspaces.packages;
                     }
-                    
+
                     // Expand workspace patterns
                     for (const pattern of workspacePatterns) {
                         // Handle glob patterns like "packages/*" or "apps/*"
                         if (pattern.includes('*')) {
                             const baseFolder = pattern.replace('/*', '');
                             const folderPath = path.join(this.basePath, baseFolder);
-                            
+
                             if (fs.existsSync(folderPath) && fs.statSync(folderPath).isDirectory()) {
                                 const subDirs = fs.readdirSync(folderPath)
                                     .filter(item => {
@@ -335,7 +335,7 @@ export class EnhancedDetectionEngine {
                                         return fs.statSync(itemPath).isDirectory() && item !== 'node_modules';
                                     })
                                     .map(item => `${baseFolder}/${item}`);
-                                
+
                                 workspaces.push(...subDirs);
                             }
                         } else {
@@ -346,7 +346,7 @@ export class EnhancedDetectionEngine {
                             }
                         }
                     }
-                    
+
                     // If we found workspaces in package.json, return them
                     if (workspaces.length > 0) {
                         return workspaces;
@@ -356,7 +356,7 @@ export class EnhancedDetectionEngine {
                 console.warn('[EnhancedDetectionEngine] Failed to parse package.json for workspaces');
             }
         }
-        
+
         // Fallback: Scan common workspace folders
         const commonFolders = [
             'apps', 'packages', 'services', 'modules', 'libs',
@@ -622,7 +622,8 @@ export class EnhancedDetectionEngine {
             packageManager: outputInfo.packageManager,
             installCommand: outputInfo.installCommand,
             path: relativePath,
-            port: 3000
+            port: 3000,
+            projectPath: basePath
         };
     }
 
@@ -1073,14 +1074,14 @@ export class EnhancedDetectionEngine {
     private detectEnvFiles(): string[] {
         const envFiles: string[] = [];
         const envPatterns = ['.env', '.env.local', '.env.development', '.env.production', '.env.example'];
-        
+
         for (const pattern of envPatterns) {
             const envPath = path.join(this.basePath, pattern);
             if (fs.existsSync(envPath)) {
                 envFiles.push(pattern);
             }
         }
-        
+
         return envFiles;
     }
 

@@ -1,3 +1,6 @@
+import * as fs from 'fs';
+import * as path from 'path';
+
 /**
  * Deterministic Docker Generator
  * 
@@ -25,6 +28,7 @@ export interface DeterministicGenerationResult {
         dockerfiles: Array<{ path: string; content: string }>;
         dockerCompose: string;
         nginxConf?: string;
+        nginxDockerfile?: string;
         dockerignore: string;
     };
     architecture: {
@@ -107,7 +111,9 @@ export class DeterministicDockerGenerator {
                 dockerfiles,
                 dockerCompose,
                 nginxConf,
-                dockerignore
+                dockerignore,
+                nginxDockerfile: (blueprint.nginxRequired && (this.getAllFrontends().length > 1 || this.getAllBackends().length > 0)) ?
+                    NginxTemplateManager.generateProxyDockerfile() : undefined
             },
             architecture,
             warnings: this.warnings,
@@ -152,7 +158,7 @@ export class DeterministicDockerGenerator {
             const content = TemplateManager.getFrontendTemplate(context);
             const path = frontend.path === '.' ? 'Dockerfile' : `${frontend.path}/Dockerfile`;
             dockerfiles.push({ path, content });
-            
+
             this.assumptions.push(`Frontend Dockerfile: ${path} (${frontend.framework})`);
         }
 
@@ -163,7 +169,7 @@ export class DeterministicDockerGenerator {
             const content = TemplateManager.getBackendTemplate(context);
             const path = backend.path === '.' ? 'Dockerfile' : `${backend.path}/Dockerfile`;
             dockerfiles.push({ path, content });
-            
+
             this.assumptions.push(`Backend Dockerfile: ${path} (${backend.language})`);
         }
 
@@ -226,20 +232,54 @@ export class DeterministicDockerGenerator {
         });
 
         // Add Nginx service (if needed)
-        if (blueprint.nginxRequired && frontends.length > 0) {
-            const nginxDependsOn = frontends.map((_, i) => 
-                frontends.length > 1 ? `frontend_${i + 1}` : 'frontend'
-            );
+        // Add Nginx service or Expose Frontend
+        // RULE: 
+        // 1. Single Frontend (Static) -> Expose directly (it runs Nginx internal)
+        // 2. Fullstack or Multi-Frontend -> Use Nginx Gateway Service
 
-            services.push({
-                name: 'nginx',
-                type: 'nginx',
-                buildContext: '.',
-                dockerfile: 'Dockerfile.nginx',
-                port: 80,
-                internalPort: 80,
-                dependsOn: nginxDependsOn
-            });
+        const isMultiService = frontends.length > 1 || backends.length > 0;
+
+        if (blueprint.nginxRequired) {
+            if (isMultiService) {
+                // Gateway Pattern: Separate Nginx service
+                // Robustness Fix: Wait for upstream services to be healthy before starting Nginx.
+                // This prevents Nginx from crashing/restarting if upstreams are not ready (Race Condition).
+                const nginxDependsOn: Record<string, { condition: string }> = {};
+
+                frontends.forEach((_, i) => {
+                    const name = frontends.length > 1 ? `frontend_${i + 1}` : 'frontend';
+                    nginxDependsOn[name] = { condition: 'service_healthy' };
+                });
+
+                // Backends are also dependencies if Nginx routes to them
+                if (backends.length > 0) {
+                    backends.forEach((_, i) => {
+                        const name = backends.length > 1 ? `backend_${i + 1}` : 'backend';
+                        nginxDependsOn[name] = { condition: 'service_healthy' };
+                    });
+                }
+
+                services.push({
+                    name: 'nginx',
+                    type: 'nginx',
+                    buildContext: '.',
+                    dockerfile: 'Dockerfile.nginx',
+                    port: 80,
+                    internalPort: 80,
+                    dependsOn: nginxDependsOn
+                });
+            } else if (frontends.length === 1) {
+                // Single Frontend Pattern: Expose frontend directly
+                // Find the frontend service and add port mapping
+                const frontendService = services.find(s => s.type === 'frontend');
+                if (frontendService) {
+                    frontendService.port = 80;
+                    frontendService.internalPort = 80;
+                    // Note: Internal port depends on the Dockerfile. 
+                    // Static site templates (nginx) use 80. Node apps might use 3000.
+                    // But 'frontend-only-nginx' blueprint implies static/nginx, so 80 is safe.
+                }
+            }
         }
 
         return ComposeTemplateManager.generateCompose(services, blueprint);
@@ -257,7 +297,7 @@ export class DeterministicDockerGenerator {
         frontends.forEach((frontend, index) => {
             const name = frontends.length > 1 ? `frontend_${index + 1}` : 'frontend';
             const path = frontends.length > 1 ? this.assignFrontendPath(frontend, index) : '/';
-            
+
             nginxServices.push({
                 name,
                 type: 'frontend',
@@ -291,15 +331,15 @@ export class DeterministicDockerGenerator {
     private assignFrontendPath(frontend: DetectedFrontend, index: number): string {
         // Check for common naming patterns
         const pathLower = frontend.path.toLowerCase();
-        
+
         if (pathLower.includes('admin')) return '/admin';
         if (pathLower.includes('dashboard')) return '/dashboard';
         if (pathLower.includes('portal')) return '/portal';
         if (pathLower.includes('app')) return '/app';
-        
+
         // First frontend gets root by default
         if (index === 0) return '/';
-        
+
         // Others get path based on folder name
         const folderName = frontend.path.split('/').pop() || `app${index + 1}`;
         return `/${folderName}`;
@@ -372,12 +412,23 @@ docs/
         // AI verification could happen here (optional)
         // But it would ONLY verify outputFolder, not change architecture
 
+        let installCommand = frontend.installCommand;
+
+        // Safety: If npm is used but no lockfile exists, force 'npm install'
+        if (frontend.packageManager === 'npm' && frontend.projectPath) {
+            const lockfilePath = path.join(frontend.projectPath, 'package-lock.json');
+            if (!fs.existsSync(lockfilePath)) {
+                installCommand = 'npm install';
+                this.warnings.push(`No package-lock.json found in ${frontend.path}, falling back to 'npm install'`);
+            }
+        }
+
         return {
             framework: frontend.framework,
             variant: frontend.variant,
             packageManager: frontend.packageManager,
             buildCommand: frontend.buildCommand,
-            installCommand: frontend.installCommand,
+            installCommand: installCommand,
             outputFolder: frontend.outputFolder,
             port: frontend.port
         };

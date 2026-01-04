@@ -16,7 +16,7 @@ export interface NginxService {
 }
 
 export class NginxTemplateManager {
-    
+
     /**
      * Generate Nginx configuration
      * RULE: All frontends served via Nginx, backends proxied
@@ -180,7 +180,7 @@ ${backendProxies}
         const frontendLocations = sortedFrontends.map(frontend => {
             const containerName = frontend.name;
             const path = frontend.path === '/' ? '' : frontend.path;
-            
+
             return `
     # Frontend: ${frontend.name}
     location ${frontend.path} {
@@ -266,7 +266,7 @@ ${frontendLocations}
      * This Dockerfile copies multiple frontend builds into appropriate paths
      */
     static generateMultiFrontendDockerfile(frontends: { name: string; buildPath: string }[]): string {
-        const copyCommands = frontends.map(f => 
+        const copyCommands = frontends.map(f =>
             `COPY --from=${f.name} /app/${f.buildPath} /usr/share/nginx/html/${f.name}/`
         ).join('\n');
 
@@ -278,6 +278,28 @@ COPY nginx.conf /etc/nginx/conf.d/default.conf
 
 # Copy all frontend builds
 ${copyCommands}
+
+# Expose port 80
+EXPOSE 80
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \\
+    CMD wget --quiet --tries=1 --spider http://localhost/nginx-health || exit 1
+
+# Start nginx
+CMD ["nginx", "-g", "daemon off;"]
+`;
+    }
+    /**
+     * Generate Nginx Dockerfile for proxy setup (Fullstack/Gateway pattern)
+     * Just copies the config, does NOT copy static files (assumes proxy_pass)
+     */
+    static generateProxyDockerfile(): string {
+        return `# Nginx Proxy Container
+FROM nginx:alpine
+
+# Copy nginx configuration
+COPY nginx.conf /etc/nginx/conf.d/default.conf
 
 # Expose port 80
 EXPOSE 80

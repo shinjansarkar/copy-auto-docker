@@ -17,7 +17,7 @@ export interface ServiceConfig {
     internalPort?: number;
     environment?: Record<string, string>;
     volumes?: string[];
-    dependsOn?: string[];
+    dependsOn?: string[] | Record<string, { condition: string }>;
     healthCheck?: {
         test: string;
         interval: string;
@@ -27,20 +27,16 @@ export interface ServiceConfig {
 }
 
 export class ComposeTemplateManager {
-    
+
     /**
      * Generate docker-compose.yml from services
      */
     static generateCompose(services: ServiceConfig[], blueprint: Blueprint): string {
-        const version = blueprint.composeVersion || '3.8';
-        
         const serviceBlocks = services.map(s => this.generateServiceBlock(s)).join('\n\n');
         const volumes = this.generateVolumes(services);
         const networks = this.generateNetworks();
 
-        return `version: '${version}'
-
-services:
+        return `services:
 ${serviceBlocks}
 
 ${volumes}
@@ -95,11 +91,23 @@ ${networks}
         }
 
         // Depends on
-        if (service.dependsOn && service.dependsOn.length > 0) {
-            lines.push(`    depends_on:`);
-            service.dependsOn.forEach(dep => {
-                lines.push(`      - ${dep}`);
-            });
+        if (service.dependsOn) {
+            const isArray = Array.isArray(service.dependsOn);
+            const hasItems = isArray ? (service.dependsOn as string[]).length > 0 : Object.keys(service.dependsOn).length > 0;
+
+            if (hasItems) {
+                lines.push(`    depends_on:`);
+                if (isArray) {
+                    (service.dependsOn as string[]).forEach(dep => {
+                        lines.push(`      - ${dep}`);
+                    });
+                } else {
+                    Object.entries(service.dependsOn).forEach(([dep, config]) => {
+                        lines.push(`      ${dep}:`);
+                        lines.push(`        condition: ${config.condition}`);
+                    });
+                }
+            }
         }
 
         // Health check

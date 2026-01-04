@@ -17,7 +17,7 @@ export interface ValidationResult {
 }
 
 export class DockerValidationService {
-    
+
     /**
      * Validate Dockerfile syntax and best practices
      */
@@ -68,7 +68,7 @@ export class DockerValidationService {
         // RULE: Must have EXPOSE or CMD
         const hasExpose = lines.some(l => l.toUpperCase().startsWith('EXPOSE '));
         const hasCmd = lines.some(l => l.toUpperCase().startsWith('CMD ') || l.toUpperCase().startsWith('ENTRYPOINT '));
-        
+
         if (!hasCmd) {
             errors.push('Dockerfile must have CMD or ENTRYPOINT instruction');
         }
@@ -79,7 +79,7 @@ export class DockerValidationService {
         }
 
         // RULE: Avoid latest tag
-        const fromWithLatest = lines.filter(l => 
+        const fromWithLatest = lines.filter(l =>
             l.toUpperCase().startsWith('FROM ') && l.includes(':latest')
         );
         if (fromWithLatest.length > 0) {
@@ -114,9 +114,10 @@ export class DockerValidationService {
         // Basic YAML syntax check
         try {
             // Simple checks for common issues
-            if (!content.includes('version:')) {
+            // Note: 'version' is optional in Compose V2 specifications
+            /* if (!content.includes('version:')) {
                 errors.push('docker-compose.yml must specify version');
-            }
+            } */
 
             if (!content.includes('services:')) {
                 errors.push('docker-compose.yml must have services section');
@@ -138,10 +139,10 @@ export class DockerValidationService {
             }
 
             // RULE: Databases should use volumes
-            const hasDatabase = content.includes('postgres') || content.includes('mysql') || 
-                              content.includes('mongodb') || content.includes('redis');
+            const hasDatabase = content.includes('postgres') || content.includes('mysql') ||
+                content.includes('mongodb') || content.includes('redis');
             const hasVolumes = content.includes('volumes:');
-            
+
             if (hasDatabase && !hasVolumes) {
                 warnings.push('Database services should use volumes for data persistence');
             }
@@ -192,7 +193,7 @@ export class DockerValidationService {
         // RULE: Should have security headers
         const securityHeaders = ['X-Frame-Options', 'X-Content-Type-Options', 'X-XSS-Protection'];
         const missingHeaders = securityHeaders.filter(h => !content.includes(h));
-        
+
         if (missingHeaders.length > 0) {
             warnings.push(`Consider adding security headers: ${missingHeaders.join(', ')}`);
         }
@@ -241,7 +242,7 @@ export class DockerValidationService {
         // RULE: Should ignore build outputs
         const buildDirs = ['dist/', 'build/', 'coverage/', '.next/'];
         const hasBuildIgnore = buildDirs.some(d => lines.includes(d));
-        
+
         if (!hasBuildIgnore) {
             warnings.push('.dockerignore should include build output directories');
         }
@@ -264,7 +265,7 @@ export class DockerValidationService {
         const errors: string[] = [];
         const warnings: string[] = [];
 
-        const frontendDockerfiles = files.dockerfiles.filter(df => 
+        const frontendDockerfiles = files.dockerfiles.filter(df =>
             df.path.includes('frontend') || df.path.includes('web') || df.path.includes('admin')
         );
 
@@ -287,7 +288,7 @@ export class DockerValidationService {
                     return path.basename(dirName);
                 });
 
-                const missingRoutes = serviceNames.filter(name => 
+                const missingRoutes = serviceNames.filter(name =>
                     !files.nginxConf!.includes(name)
                 );
 
@@ -328,7 +329,7 @@ export class DockerValidationService {
         files.dockerfiles.forEach(df => {
             const type = df.path.includes('frontend') || df.path.includes('web') ? 'frontend' : 'backend';
             const result = this.validateDockerfile(df.content, type);
-            
+
             if (!result.valid) {
                 allErrors.push(`${df.path}: ${result.errors.join(', ')}`);
             }
