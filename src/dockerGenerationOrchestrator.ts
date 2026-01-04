@@ -9,6 +9,7 @@ export interface GeneratedDockerFiles {
     dockerCompose: string;
     dockerIgnore: string;
     nginxConf?: string;
+    nginxConfFiles?: Array<{ path: string; content: string }>;  // nginx.conf for each frontend directory
     nginxDockerfile?: string;
     frontendDockerfiles?: Array<{ path: string; content: string }>;
     backendDockerfiles?: Array<{ path: string; content: string }>;
@@ -92,6 +93,10 @@ export class DockerGenerationOrchestrator {
 
             if (result.files.nginxConf) {
                 files.nginxConf = result.files.nginxConf;
+            }
+
+            if (result.files.nginxConfFiles) {
+                files.nginxConfFiles = result.files.nginxConfFiles;
             }
 
             if (result.files.nginxDockerfile) {

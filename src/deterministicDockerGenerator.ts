@@ -28,6 +28,7 @@ export interface DeterministicGenerationResult {
         dockerfiles: Array<{ path: string; content: string }>;
         dockerCompose: string;
         nginxConf?: string;
+        nginxConfFiles?: Array<{ path: string; content: string }>;  // nginx.conf for each frontend directory
         nginxDockerfile?: string;
         dockerignore: string;
     };
@@ -79,6 +80,19 @@ export class DeterministicDockerGenerator {
 
         // Step 4: Generate Nginx config (if needed)
         const nginxConf = blueprint.nginxRequired ? this.generateNginxConfig() : undefined;
+        
+        // Step 4b: Generate nginx.conf for each frontend directory
+        const nginxConfFiles: Array<{ path: string; content: string }> = [];
+        if (blueprint.nginxRequired && nginxConf) {
+            const frontends = this.getAllFrontends();
+            frontends.forEach(frontend => {
+                const nginxPath = frontend.path === '.' ? 'nginx.conf' : `${frontend.path}/nginx.conf`;
+                nginxConfFiles.push({
+                    path: nginxPath,
+                    content: nginxConf
+                });
+            });
+        }
 
         // Step 5: Generate .dockerignore
         const dockerignore = this.generateDockerignore();
@@ -111,8 +125,9 @@ export class DeterministicDockerGenerator {
                 dockerfiles,
                 dockerCompose,
                 nginxConf,
+                nginxConfFiles,
                 dockerignore,
-                nginxDockerfile: (blueprint.nginxRequired && (this.getAllFrontends().length > 1 || this.getAllBackends().length > 0)) ?
+                nginxDockerfile: (blueprint.nginxRequired && this.getAllFrontends().length > 1) ?
                     NginxTemplateManager.generateProxyDockerfile() : undefined
             },
             architecture,
@@ -234,20 +249,21 @@ export class DeterministicDockerGenerator {
         // Add Nginx service (if needed)
         // Add Nginx service or Expose Frontend
         // RULE: 
-        // 1. Single Frontend (Static) -> Expose directly (it runs Nginx internal)
-        // 2. Fullstack or Multi-Frontend -> Use Nginx Gateway Service
+        // 1. Single Frontend -> Expose directly (it runs Nginx internally in the Dockerfile)
+        // 2. Multiple Frontends -> Use separate Nginx Gateway Service for path-based routing
+        // Frontend Dockerfiles already include nginx, so no separate nginx service needed for single frontend
 
-        const isMultiService = frontends.length > 1 || backends.length > 0;
+        const needsSeparateNginx = frontends.length > 1;
 
         if (blueprint.nginxRequired) {
-            if (isMultiService) {
-                // Gateway Pattern: Separate Nginx service
+            if (needsSeparateNginx) {
+                // Gateway Pattern: Separate Nginx service for multiple frontends
+                // This enables path-based routing (/admin, /dashboard, etc.)
                 // Robustness Fix: Wait for upstream services to be healthy before starting Nginx.
-                // This prevents Nginx from crashing/restarting if upstreams are not ready (Race Condition).
                 const nginxDependsOn: Record<string, { condition: string }> = {};
 
                 frontends.forEach((_, i) => {
-                    const name = frontends.length > 1 ? `frontend_${i + 1}` : 'frontend';
+                    const name = `frontend_${i + 1}`;
                     nginxDependsOn[name] = { condition: 'service_healthy' };
                 });
 
@@ -269,15 +285,17 @@ export class DeterministicDockerGenerator {
                     dependsOn: nginxDependsOn
                 });
             } else if (frontends.length === 1) {
-                // Single Frontend Pattern: Expose frontend directly
-                // Find the frontend service and add port mapping
+                // Single Frontend Pattern: Expose frontend directly on port 80
+                // Frontend Dockerfile already includes nginx, so just expose the port
                 const frontendService = services.find(s => s.type === 'frontend');
                 if (frontendService) {
                     frontendService.port = 80;
                     frontendService.internalPort = 80;
-                    // Note: Internal port depends on the Dockerfile. 
-                    // Static site templates (nginx) use 80. Node apps might use 3000.
-                    // But 'frontend-only-nginx' blueprint implies static/nginx, so 80 is safe.
+                    // Add dependency on backend if it exists
+                    if (backends.length > 0) {
+                        const backendName = backends.length > 1 ? 'backend_1' : 'backend';
+                        frontendService.dependsOn = [backendName];
+                    }
                 }
             }
         }

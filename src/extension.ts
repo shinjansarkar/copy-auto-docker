@@ -205,8 +205,18 @@ async function writeGeneratedFiles(workspaceRoot: string, files: any): Promise<v
         outputChannel.appendLine('✅ Written: docker-compose.yml');
     }
 
-    // Write nginx.conf at root ONLY for single-service frontend projects
-    if (files.nginxConf && (!files.frontendDockerfiles || files.frontendDockerfiles.length === 0)) {
+    // Write nginx.conf files in frontend directories
+    if (files.nginxConfFiles && files.nginxConfFiles.length > 0) {
+        for (const nginxFile of files.nginxConfFiles) {
+            const nginxPath = path.join(workspaceRoot, nginxFile.path);
+            const dir = path.dirname(nginxPath);
+            if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+            fs.writeFileSync(nginxPath, nginxFile.content, 'utf-8');
+            outputChannel.appendLine(`✅ Written: ${nginxFile.path}`);
+        }
+    }
+    // Fallback: Write nginx.conf at root for single-service projects
+    else if (files.nginxConf && (!files.frontendDockerfiles || files.frontendDockerfiles.length === 0)) {
         const nginxPath = path.join(workspaceRoot, 'nginx.conf');
         fs.writeFileSync(nginxPath, files.nginxConf, 'utf-8');
         outputChannel.appendLine('✅ Written: nginx.conf');

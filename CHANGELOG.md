@@ -1,5 +1,77 @@
 # Changelog
 
+## [3.0.2] - 2026-01-05
+
+### 🐛 Bug Fixes
+
+#### Nginx Config File Location Fix
+- **FIXED**: nginx.conf now generated in frontend directories (e.g., `client/nginx.conf`)
+- **FIXED**: Error "Missing client/nginx.conf (referenced by client/Dockerfile line 23)"
+- **CHANGED**: nginx.conf is now placed alongside each frontend Dockerfile
+- **BEHAVIOR**: For frontend in `client/` folder, generates `client/nginx.conf`
+- **BEHAVIOR**: For frontend in root, generates `nginx.conf` at root
+- **BEHAVIOR**: Multiple frontends get nginx.conf in each respective directory
+
+#### Technical Details
+- Updated `DeterministicGenerationResult` to include `nginxConfFiles` array
+- Each frontend directory gets its own nginx.conf file
+- Properly handles nested frontend directories (client/, web/, frontend/, etc.)
+- nginx.conf content is same for all frontends in single-frontend scenarios
+
+### File Generation Pattern
+```
+project/
+├── client/
+│   ├── Dockerfile          ✅ Generated
+│   ├── nginx.conf          ✅ Generated (NEW - placed in frontend dir)
+│   └── src/...
+├── server/
+│   ├── Dockerfile          ✅ Generated
+│   └── src/...
+└── docker-compose.yml      ✅ Generated
+```
+
+---
+
+## [3.0.1] - 2026-01-05
+
+### 🐛 Bug Fixes
+
+#### Nginx Service Architecture Fix
+- **FIXED**: Removed unnecessary separate nginx service for single frontend applications
+- **FIXED**: Frontend + backend now correctly generates 2 services (was 3 with extra nginx)
+- **FIXED**: Validation error "Extra nginx service in docker-compose.yml"
+- **CHANGED**: Single frontend containers now expose port 80 directly using internal nginx
+- **KEPT**: Separate nginx gateway service for multiple frontends (path-based routing)
+
+#### Blueprint Updates
+- Updated `frontend-only-nginx` blueprint to remove separate nginx service
+- Updated `frontend-backend-nginx` blueprint to remove separate nginx service
+- Updated `frontend-backend-db-cache` blueprint to remove separate nginx service
+- Kept nginx service in `multi-frontend-*` blueprints for gateway pattern
+
+#### Architecture Clarification
+- **Rule**: Single frontend = nginx built into frontend container (1 container)
+- **Rule**: Multiple frontends = separate nginx gateway service (N+1 containers)
+- Frontend Dockerfiles already include nginx in production stage
+- nginx.conf is always generated for both patterns
+
+### 📝 Documentation
+- Added `NGINX_FIX_DOCUMENTATION.md` - Complete technical documentation
+- Added `NGINX_FIX_SUMMARY.md` - User-friendly summary
+- Added `ADR_FRONTEND_NGINX_PATTERN.md` - Architecture decision record
+- Added `TESTING_CHECKLIST.md` - Comprehensive testing guide
+
+### Service Count Summary
+| Scenario | Service Count | Containers |
+|----------|--------------|------------|
+| Frontend only | 1 | `frontend` |
+| Frontend + Backend | 2 | `frontend` + `backend` |
+| Frontend + Backend + DB | 3 | `frontend` + `backend` + `database` |
+| 2 Frontends + Backend | 4 | `frontend_1` + `frontend_2` + `nginx` + `backend` |
+
+---
+
 ## [3.0.0] - 2026-01-03
 
 ### 🏗️ MAJOR ARCHITECTURAL OVERHAUL

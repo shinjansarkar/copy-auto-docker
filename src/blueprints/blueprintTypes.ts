@@ -42,8 +42,7 @@ export const BLUEPRINTS: Record<BlueprintType, Blueprint> = {
         type: 'frontend-only-nginx',
         description: 'Single frontend application served via Nginx',
         services: [
-            { name: 'frontend', type: 'frontend', required: true, nginxRoute: '/' },
-            { name: 'nginx', type: 'nginx', required: true, port: 80 }
+            { name: 'frontend', type: 'frontend', required: true, port: 80, nginxRoute: '/' }
         ],
         nginxRequired: true,
         composeVersion: '3.8'
@@ -63,9 +62,8 @@ export const BLUEPRINTS: Record<BlueprintType, Blueprint> = {
         type: 'frontend-backend-nginx',
         description: 'Frontend + Backend with Nginx reverse proxy',
         services: [
-            { name: 'frontend', type: 'frontend', required: true, nginxRoute: '/' },
-            { name: 'backend', type: 'backend', required: true, port: 3000, nginxRoute: '/api' },
-            { name: 'nginx', type: 'nginx', required: true, port: 80, dependsOn: ['frontend'] }
+            { name: 'frontend', type: 'frontend', required: true, port: 80, nginxRoute: '/', dependsOn: ['backend'] },
+            { name: 'backend', type: 'backend', required: true, port: 3000, nginxRoute: '/api' }
         ],
         nginxRequired: true,
         composeVersion: '3.8'
@@ -75,11 +73,10 @@ export const BLUEPRINTS: Record<BlueprintType, Blueprint> = {
         type: 'frontend-backend-db-cache',
         description: 'Full stack with database and cache',
         services: [
-            { name: 'frontend', type: 'frontend', required: true, nginxRoute: '/' },
+            { name: 'frontend', type: 'frontend', required: true, port: 80, nginxRoute: '/', dependsOn: ['backend'] },
             { name: 'backend', type: 'backend', required: true, port: 3000, nginxRoute: '/api', dependsOn: ['database', 'cache'] },
             { name: 'database', type: 'database', required: true, port: 5432 },
-            { name: 'cache', type: 'cache', required: true, port: 6379 },
-            { name: 'nginx', type: 'nginx', required: true, port: 80, dependsOn: ['frontend'] }
+            { name: 'cache', type: 'cache', required: true, port: 6379 }
         ],
         nginxRequired: true,
         composeVersion: '3.8'
