@@ -15,12 +15,12 @@ export interface TemplateContext {
     installCommand?: string;
     outputFolder?: string;
     port?: number;
-    
+
     // Backend context
     language?: 'node' | 'python' | 'java' | 'go' | 'php' | 'dotnet' | 'ruby' | 'elixir' | 'rust' | 'haskell' | 'kotlin' | 'scala';
     backendFramework?: string;
     entryPoint?: string;
-    
+
     // Common
     serviceName?: string;
     workingDir?: string;
@@ -31,7 +31,7 @@ export interface TemplateContext {
  * Template Manager - Main Class
  */
 export class TemplateManager {
-    
+
     /**
      * Get frontend Dockerfile template
      * RULE: Templates only - no dynamic generation
@@ -93,8 +93,8 @@ export class TemplateManager {
         const { packageManager = 'npm', installCommand, buildCommand, outputFolder = 'dist' } = context;
 
         const packageFiles = packageManager === 'yarn' ? 'package.json yarn.lock' :
-                           packageManager === 'pnpm' ? 'package.json pnpm-lock.yaml' :
-                           'package*.json';
+            packageManager === 'pnpm' ? 'package.json pnpm-lock.yaml' :
+                'package*.json';
 
         const install = installCommand || `${packageManager} install`;
         const build = buildCommand || `${packageManager} run build`;
@@ -145,8 +145,8 @@ CMD ["nginx", "-g", "daemon off;"]
         const { packageManager = 'npm', installCommand } = context;
 
         const packageFiles = packageManager === 'yarn' ? 'package.json yarn.lock' :
-                           packageManager === 'pnpm' ? 'package.json pnpm-lock.yaml' :
-                           'package*.json';
+            packageManager === 'pnpm' ? 'package.json pnpm-lock.yaml' :
+                'package*.json';
 
         const install = installCommand || `${packageManager} install`;
 
@@ -207,8 +207,8 @@ CMD ["node", "server.js"]
         const { packageManager = 'npm', installCommand } = context;
 
         const packageFiles = packageManager === 'yarn' ? 'package.json yarn.lock' :
-                           packageManager === 'pnpm' ? 'package.json pnpm-lock.yaml' :
-                           'package*.json';
+            packageManager === 'pnpm' ? 'package.json pnpm-lock.yaml' :
+                'package*.json';
 
         const install = installCommand || `${packageManager} install`;
 
@@ -258,8 +258,8 @@ CMD ["node", "server/index.mjs"]
         const { packageManager = 'npm', installCommand } = context;
 
         const packageFiles = packageManager === 'yarn' ? 'package.json yarn.lock' :
-                           packageManager === 'pnpm' ? 'package.json pnpm-lock.yaml' :
-                           'package*.json';
+            packageManager === 'pnpm' ? 'package.json pnpm-lock.yaml' :
+                'package*.json';
 
         const install = installCommand || `${packageManager} install`;
 
@@ -311,8 +311,8 @@ CMD ["node", "build"]
         const { packageManager = 'npm', installCommand, entryPoint = 'server.js', port = 3000 } = context;
 
         const packageFiles = packageManager === 'yarn' ? 'package.json yarn.lock' :
-                           packageManager === 'pnpm' ? 'package.json pnpm-lock.yaml' :
-                           'package*.json';
+            packageManager === 'pnpm' ? 'package.json pnpm-lock.yaml' :
+                'package*.json';
 
         const install = installCommand || `${packageManager} install --production`;
 
@@ -330,8 +330,13 @@ RUN ${packageManager} install
 # Copy source
 COPY . .
 
-# Build if needed (TypeScript, etc.)
-RUN if [ -f "tsconfig.json" ]; then ${packageManager} run build || true; fi
+# Build and prepare production files
+RUN if [ -f "tsconfig.json" ]; then ${packageManager} run build || true; fi && \\
+    mkdir -p /app/prod && \\
+    (cp -r dist /app/prod/ 2>/dev/null || true) && \\
+    (cp -r src /app/prod/ 2>/dev/null || true) && \\
+    (cp *.js /app/prod/ 2>/dev/null || true) && \\
+    (cp ${entryPoint} /app/prod/ 2>/dev/null || true)
 
 # Production stage
 FROM node:20-alpine
@@ -347,8 +352,7 @@ COPY ${packageFiles} ./
 RUN ${install}
 
 # Copy built files or source
-COPY --from=builder /app/dist ./dist 2>/dev/null || true
-COPY --from=builder /app/${entryPoint} ./ 2>/dev/null || COPY --from=builder /app/src ./src
+COPY --from=builder /app/prod ./
 
 # Expose port
 EXPOSE ${port}
@@ -368,11 +372,11 @@ CMD ["node", "${entryPoint}"]
     private static getPythonBackendTemplate(context: TemplateContext): string {
         const { backendFramework = 'fastapi', entryPoint = 'main.py', port = 8000 } = context;
 
-        const command = backendFramework === 'django' ? 
+        const command = backendFramework === 'django' ?
             'python manage.py runserver 0.0.0.0:8000' :
             backendFramework === 'flask' ?
-            'python app.py' :
-            'uvicorn main:app --host 0.0.0.0 --port 8000';
+                'python app.py' :
+                'uvicorn main:app --host 0.0.0.0 --port 8000';
 
         return `# Multi-stage build for Python backend
 FROM python:3.11-slim AS builder

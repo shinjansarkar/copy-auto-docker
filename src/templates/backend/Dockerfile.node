@@ -12,8 +12,13 @@ RUN npm ci
 # Copy source code
 COPY . .
 
-# Build if TypeScript project exists
-RUN if [ -f "tsconfig.json" ]; then npm run build || true; fi
+# Build and prepare production files
+RUN if [ -f "tsconfig.json" ]; then npm run build || true; fi && \
+    mkdir -p /app/prod && \
+    (cp -r dist /app/prod/ 2>/dev/null || true) && \
+    (cp -r src /app/prod/ 2>/dev/null || true) && \
+    (cp *.js /app/prod/ 2>/dev/null || true) && \
+    (cp server.js /app/prod/ 2>/dev/null || true)
 
 # Production stage
 FROM node:20-alpine
@@ -29,9 +34,7 @@ COPY package*.json ./
 RUN npm ci --only=production
 
 # Copy built files or source from builder
-COPY --from=builder /app/dist ./dist 2>/dev/null || true
-COPY --from=builder /app/src ./src 2>/dev/null || true
-COPY --from=builder /app/*.js ./ 2>/dev/null || true
+COPY --from=builder /app/prod ./
 
 # Expose port (default 5000, can be customized)
 EXPOSE 5000
