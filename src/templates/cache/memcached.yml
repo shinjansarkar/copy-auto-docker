@@ -1,0 +1,12 @@
+# Memcached Cache Service Configuration
+# This is a docker-compose service definition for Memcached
+
+# Usage in docker-compose.yml:
+# memcached:
+#   image: memcached:1.6-alpine
+#   ports:
+#     - "11211:11211"
+#   command: memcached -m 64
+#   restart: unless-stopped
+
+# Note: Memcached does not support persistence or health checks

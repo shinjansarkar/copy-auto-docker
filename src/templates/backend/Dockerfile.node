@@ -1,0 +1,47 @@
+# Multi-stage build for Node.js backend
+FROM node:20-alpine AS builder
+
+WORKDIR /app
+
+# Copy package files
+COPY package*.json ./
+
+# Install all dependencies (including dev for build)
+RUN npm ci
+
+# Copy source code
+COPY . .
+
+# Build and prepare production files
+RUN if [ -f "tsconfig.json" ]; then npm run build || true; fi && \
+    mkdir -p /app/prod && \
+    (cp -r dist /app/prod/ 2>/dev/null || true) && \
+    (cp -r src /app/prod/ 2>/dev/null || true) && \
+    (cp *.js /app/prod/ 2>/dev/null || true) && \
+    (cp server.js /app/prod/ 2>/dev/null || true)
+
+# Production stage
+FROM node:20-alpine
+
+WORKDIR /app
+
+ENV NODE_ENV=production
+
+# Copy package files
+COPY package*.json ./
+
+# Install production dependencies only
+RUN npm ci --only=production
+
+# Copy built files or source from builder
+COPY --from=builder /app/prod ./
+
+# Expose port (default 5000, can be customized)
+EXPOSE 5000
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
+    CMD wget --quiet --tries=1 --spider http://localhost:5000/health || exit 1
+
+# Start application
+CMD ["node", "server.js"]

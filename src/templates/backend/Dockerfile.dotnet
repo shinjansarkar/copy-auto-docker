@@ -1,0 +1,31 @@
+# Multi-stage build for .NET (ASP.NET Core Web API)
+FROM mcr.microsoft.com/dotnet/sdk:8.0 AS builder
+
+WORKDIR /app
+
+# Copy csproj and restore dependencies
+COPY *.csproj ./
+RUN dotnet restore
+
+# Copy source code and build
+COPY . ./
+RUN dotnet publish -c Release -o out
+
+# Production stage
+FROM mcr.microsoft.com/dotnet/aspnet:8.0
+
+WORKDIR /app
+
+# Copy published application from builder
+COPY --from=builder /app/out .
+
+# Expose port
+EXPOSE 80
+EXPOSE 443
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
+    CMD curl --fail http://localhost/health || exit 1
+
+# Start ASP.NET Core application
+ENTRYPOINT ["dotnet", "app.dll"]

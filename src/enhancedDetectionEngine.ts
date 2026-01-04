@@ -71,6 +71,9 @@ export interface EnhancedDetectionResult {
     hasDockerfile: boolean;
     hasDockerCompose: boolean;
     hasNginxConfig: boolean;
+    isMonorepo?: boolean;
+    envFiles?: string[];
+    envVars?: string[];
 }
 
 /**
@@ -186,9 +189,12 @@ export class EnhancedDetectionEngine {
             const hasPackagesFolder = fs.existsSync(path.join(this.basePath, 'packages'));
 
             if (hasAppsFolder || hasPackagesFolder) {
+                // Get workspaces from folders
+                const workspaces = await this.getWorkspaces('yarn');
                 return {
                     isMonorepo: true,
                     tool: 'yarn',
+                    workspaces,
                     frontends: [],
                     backends: []
                 };
@@ -240,10 +246,12 @@ export class EnhancedDetectionEngine {
                 }
 
                 if (hasProject) {
+                    // Try to get workspaces from package.json first, fallback to detected spaces
+                    const workspacesFromPackageJson = await this.getWorkspaces('yarn');
                     return {
                         isMonorepo: true,
                         tool: 'yarn', // Default
-                        workspaces: spaces,
+                        workspaces: workspacesFromPackageJson.length > 0 ? workspacesFromPackageJson : spaces,
                         frontends: [],
                         backends: []
                     };
@@ -295,7 +303,61 @@ export class EnhancedDetectionEngine {
     private async getWorkspaces(tool?: MonorepoInfo['tool']): Promise<string[]> {
         const workspaces: string[] = [];
 
-        // Common workspace folders
+        // First, try to read workspaces from package.json
+        const packageJsonPath = path.join(this.basePath, 'package.json');
+        
+        if (fs.existsSync(packageJsonPath)) {
+            try {
+                const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf-8'));
+                
+                // Check for workspaces field (yarn/npm workspaces)
+                if (packageJson.workspaces) {
+                    let workspacePatterns: string[] = [];
+                    
+                    // workspaces can be array or object with "packages" field
+                    if (Array.isArray(packageJson.workspaces)) {
+                        workspacePatterns = packageJson.workspaces;
+                    } else if (packageJson.workspaces.packages) {
+                        workspacePatterns = packageJson.workspaces.packages;
+                    }
+                    
+                    // Expand workspace patterns
+                    for (const pattern of workspacePatterns) {
+                        // Handle glob patterns like "packages/*" or "apps/*"
+                        if (pattern.includes('*')) {
+                            const baseFolder = pattern.replace('/*', '');
+                            const folderPath = path.join(this.basePath, baseFolder);
+                            
+                            if (fs.existsSync(folderPath) && fs.statSync(folderPath).isDirectory()) {
+                                const subDirs = fs.readdirSync(folderPath)
+                                    .filter(item => {
+                                        const itemPath = path.join(folderPath, item);
+                                        return fs.statSync(itemPath).isDirectory() && item !== 'node_modules';
+                                    })
+                                    .map(item => `${baseFolder}/${item}`);
+                                
+                                workspaces.push(...subDirs);
+                            }
+                        } else {
+                            // Direct folder reference like "client" or "server"
+                            const folderPath = path.join(this.basePath, pattern);
+                            if (fs.existsSync(folderPath) && fs.statSync(folderPath).isDirectory()) {
+                                workspaces.push(pattern);
+                            }
+                        }
+                    }
+                    
+                    // If we found workspaces in package.json, return them
+                    if (workspaces.length > 0) {
+                        return workspaces;
+                    }
+                }
+            } catch (e) {
+                console.warn('[EnhancedDetectionEngine] Failed to parse package.json for workspaces');
+            }
+        }
+        
+        // Fallback: Scan common workspace folders
         const commonFolders = [
             'apps', 'packages', 'services', 'modules', 'libs',
             'microservices', 'functions', 'projects', 'workspaces',
@@ -362,6 +424,7 @@ export class EnhancedDetectionEngine {
 
         // Detect databases
         const databases = await this.detectDatabases();
+        const envFiles = this.detectEnvFiles();
 
         return {
             projectType: 'monorepo',
@@ -369,7 +432,10 @@ export class EnhancedDetectionEngine {
             databases,
             hasDockerfile: this.checkFileExists('Dockerfile'),
             hasDockerCompose: this.checkFileExists('docker-compose.yml') || this.checkFileExists('docker-compose.yaml'),
-            hasNginxConfig: this.checkFileExists('nginx.conf')
+            hasNginxConfig: this.checkFileExists('nginx.conf'),
+            isMonorepo: true,
+            envFiles: envFiles,
+            envVars: []
         };
     }
 
@@ -382,6 +448,7 @@ export class EnhancedDetectionEngine {
         const frontend = await this.detectFrontend(this.basePath, '.');
         const backend = await this.detectBackend(this.basePath, '.');
         const databases = await this.detectDatabases();
+        const envFiles = this.detectEnvFiles();
 
         // Determine project type
         let projectType: ProjectType;
@@ -407,7 +474,10 @@ export class EnhancedDetectionEngine {
             databases,
             hasDockerfile: this.checkFileExists('Dockerfile'),
             hasDockerCompose: this.checkFileExists('docker-compose.yml') || this.checkFileExists('docker-compose.yaml'),
-            hasNginxConfig: this.checkFileExists('nginx.conf')
+            hasNginxConfig: this.checkFileExists('nginx.conf'),
+            isMonorepo: false,
+            envFiles: envFiles,
+            envVars: []
         };
     }
 
@@ -756,13 +826,40 @@ export class EnhancedDetectionEngine {
         }
 
         // Check for Ruby backend (Rails/Sinatra)
+        // Enhanced detection for Ruby on Rails with multiple signals
         const gemfilePath = path.join(basePath, 'Gemfile');
         if (fs.existsSync(gemfilePath)) {
             const gemfile = fs.readFileSync(gemfilePath, 'utf-8');
             let framework = 'ruby-rails';
+            let isRails = false;
 
-            if (gemfile.includes("gem 'rails'")) framework = 'ruby-rails';
-            else if (gemfile.includes('sinatra')) framework = 'ruby-sinatra';
+            // Multiple Rails detection signals
+            if (gemfile.includes("gem 'rails'") || gemfile.includes('gem "rails"')) {
+                framework = 'ruby-rails';
+                isRails = true;
+            } else if (gemfile.includes('sinatra')) {
+                framework = 'ruby-sinatra';
+            }
+
+            // Additional Rails validation
+            const railsIndicators = [
+                path.join(basePath, 'config', 'application.rb'),
+                path.join(basePath, 'bin', 'rails'),
+                path.join(basePath, 'config', 'routes.rb'),
+                path.join(basePath, 'Rakefile')
+            ];
+
+            const hasRailsStructure = railsIndicators.some(p => fs.existsSync(p));
+            if (hasRailsStructure) {
+                framework = 'ruby-rails';
+                isRails = true;
+            }
+
+            // Detect entry point
+            let entryPoint = 'config.ru';
+            if (fs.existsSync(path.join(basePath, 'config.ru'))) {
+                entryPoint = 'config.ru';
+            }
 
             return {
                 exists: true,
@@ -771,7 +868,9 @@ export class EnhancedDetectionEngine {
                 packageManager: 'bundler',
                 path: relativePath,
                 projectPath: basePath,
-                port: 3000
+                port: 3000,
+                entryPoint,
+                dependencies: isRails ? { rails: true, puma: gemfile.includes('puma') } : {}
             };
         }
 
@@ -966,6 +1065,23 @@ export class EnhancedDetectionEngine {
         }
 
         return databases;
+    }
+
+    /**
+     * Detect environment files (.env, .env.local, etc.)
+     */
+    private detectEnvFiles(): string[] {
+        const envFiles: string[] = [];
+        const envPatterns = ['.env', '.env.local', '.env.development', '.env.production', '.env.example'];
+        
+        for (const pattern of envPatterns) {
+            const envPath = path.join(this.basePath, pattern);
+            if (fs.existsSync(envPath)) {
+                envFiles.push(pattern);
+            }
+        }
+        
+        return envFiles;
     }
 
     /**

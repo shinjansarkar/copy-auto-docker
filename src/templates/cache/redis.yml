@@ -1,0 +1,21 @@
+# Redis Cache Service Configuration
+# This is a docker-compose service definition for Redis
+
+# Usage in docker-compose.yml:
+# redis:
+#   image: redis:7-alpine
+#   ports:
+#     - "6379:6379"
+#   volumes:
+#     - redis_data:/data
+#   command: redis-server --appendonly yes
+#   healthcheck:
+#     test: ["CMD", "redis-cli", "ping"]
+#     interval: 10s
+#     timeout: 5s
+#     retries: 5
+#   restart: unless-stopped
+
+# Volume definition:
+# volumes:
+#   redis_data:
